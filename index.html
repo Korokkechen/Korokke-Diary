@@ -3,40 +3,34 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="大忘日记">
     <link rel="apple-touch-icon" href="https://raw.githubusercontent.com/otter-diary/design/main/dawang_icon_v2.png">
-    
     <title>大忘日记</title>
     <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         [v-cloak] { display: none; }
-        body { 
-            background-color: #f8f8f8; 
-            font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "PingFang SC", sans-serif;
-            -webkit-tap-highlight-color: transparent; 
-            user-select: none;
-            padding-top: env(safe-area-inset-top);
-        }
+        body { background-color: #f8f8f8; font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "PingFang SC", sans-serif; -webkit-tap-highlight-color: transparent; user-select: none; padding-top: env(safe-area-inset-top); }
         .sub-nav-active { color: #000; font-weight: 800; border-bottom: 2px solid #000; }
         .sub-nav-item { padding: 8px 0; margin: 0 15px; font-size: 14px; color: #aaa; cursor: pointer; }
-        .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; }
-        .calendar-day { aspect-ratio: 1/1; display: flex; align-items: center; justify-content: center; border-radius: 12px; font-size: 13px; background: #fff; position: relative; cursor: pointer; }
-        .has-diary::after { content: ''; width: 4px; height: 4px; background: #ff2442; border-radius: 50%; position: absolute; bottom: 4px; }
-        .is-today { border: 2px solid #000; font-weight: 900; }
-        .is-selected { background: #000 !important; color: #fff !important; }
         
-        /* 热力图修正 */
+        /* 智能日历样式 */
+        .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+        .calendar-day { aspect-ratio: 1/1; display: flex; align-items: center; justify-content: center; border-radius: 14px; font-size: 13px; background: #fff; position: relative; cursor: pointer; transition: all 0.2s; border: 1px solid transparent; }
+        .calendar-day-empty { aspect-ratio: 1/1; }
+        .has-diary::after { content: ''; width: 4px; height: 4px; background: #ff2442; border-radius: 50%; position: absolute; bottom: 4px; }
+        .is-today { border: 2.5px solid #000; font-weight: 900; }
+        .is-selected { background: #000 !important; color: #fff !important; }
+
         .heat-map-container { display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; min-height: 40px; }
         .heat-cell { width: 10px; height: 10px; border-radius: 2px; background-color: #eeeeee; }
         .heat-cell-active { background-color: #000000 !important; }
 
         .nav-padding { padding-bottom: calc(0.5rem + env(safe-area-inset-bottom)); }
-        .btn-card { background: white; color: black; border: 1px solid #f1f1f1; border-radius: 28px; padding: 1.5rem; display: flex; flex-direction: column; align-items: flex-start; transition: all 0.2s; }
+        .btn-card { background: white; color: black; border: 1px solid #f1f1f1; border-radius: 28px; padding: 1.5rem; display: flex; flex-direction: column; align-items: flex-start; }
         .btn-card:active { transform: scale(0.95); background: #f9f9f9; }
         .btn-card i { font-size: 1.25rem; margin-bottom: 0.75rem; }
         .btn-label { font-size: 9px; font-weight: 700; color: #ccc; text-transform: uppercase; margin-bottom: 0.25rem; }
@@ -52,6 +46,9 @@
                 <div class="w-6"></div>
                 <h1 class="text-[12px] font-black tracking-[0.3em] uppercase text-gray-900">大忘日记</h1>
                 <div @click="isSearching = !isSearching" class="cursor-pointer text-gray-400 p-2"><i class="fas fa-search"></i></div>
+            </div>
+            <div v-if="isSearching" class="px-2 pb-4">
+                <input v-model="searchQuery" autofocus class="w-full bg-white border border-gray-100 rounded-full px-4 py-2.5 text-sm focus:outline-none" placeholder="搜索关键词...">
             </div>
             <div v-if="currentTab === 0" class="flex justify-center mt-2 pb-1">
                 <div @click="subTab = 0" :class="['sub-nav-item', subTab === 0 ? 'sub-nav-active' : '']">时间轴</div>
@@ -74,21 +71,42 @@
                             </div>
                             <div class="text-[10px] text-gray-300 font-mono pr-2 pt-1">{{ item.date.split('-')[0] }}</div>
                         </div>
-                        <p class="text-[15px] text-gray-800 leading-relaxed mb-4 whitespace-pre-wrap">{{ item.content }}</p>
+                        <p class="text-[15px] text-gray-800 leading-relaxed whitespace-pre-wrap">{{ item.content }}</p>
                     </div>
                 </div>
             </section>
 
             <section v-if="currentTab === 1">
-                <div class="bg-white rounded-[32px] p-6 shadow-sm border border-gray-50 mb-6 text-center">
+                <div class="bg-white rounded-[32px] p-6 shadow-sm border border-gray-50 mb-6">
+                    <div class="flex justify-between items-center mb-6 px-2">
+                        <button @click="changeMonth(-1)" class="p-2 text-gray-300 active:text-black"><i class="fas fa-chevron-left"></i></button>
+                        <div class="text-center">
+                            <span class="text-[9px] font-black text-gray-300 uppercase tracking-widest block mb-1">Calendar</span>
+                            <span class="text-lg font-black text-gray-900">{{ currentYear }}年 {{ currentMonth + 1 }}月</span>
+                        </div>
+                        <button @click="changeMonth(1)" class="p-2 text-gray-300 active:text-black"><i class="fas fa-chevron-right"></i></button>
+                    </div>
+
                     <div class="calendar-grid text-center text-[10px] font-bold text-gray-300 mb-4 uppercase">
                         <span>S</span><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span>
                     </div>
                     <div class="calendar-grid">
-                        <div v-for="n in 31" :key="n" @click="selectedDate = n"
-                             :class="['calendar-day', n === new Date().getDate() ? 'is-today' : '', hasDiary(n) ? 'has-diary' : '', selectedDate === n ? 'is-selected' : '']">
-                            {{ n }}
+                        <div v-for="empty in firstDayOfWeek" :key="'empty-'+empty" class="calendar-day-empty"></div>
+                        <div v-for="day in daysInMonth" :key="day" 
+                             @click="selectedDate = day"
+                             :class="['calendar-day', isToday(day) ? 'is-today' : '', hasDiaryInCal(day) ? 'has-diary' : '', selectedDate === day ? 'is-selected' : '']">
+                            {{ day }}
                         </div>
+                    </div>
+                </div>
+
+                <div class="space-y-4">
+                    <div v-for="item in selectedDayDiaries" :key="item.ts" class="bg-white rounded-[24px] p-5 border border-gray-50 shadow-sm">
+                        <div class="text-[9px] font-bold text-gray-300 uppercase mb-2">{{ item.date }}</div>
+                        <p class="text-sm text-gray-700 leading-relaxed">{{ item.content }}</p>
+                    </div>
+                    <div v-if="selectedDayDiaries.length === 0" class="text-center py-10 text-gray-200 text-[10px] font-bold uppercase tracking-widest">
+                        这一天没有记忆
                     </div>
                 </div>
             </section>
@@ -100,38 +118,17 @@
                         <div><p class="text-[10px] font-bold text-gray-300 uppercase mb-1">Words</p><p class="text-4xl font-black italic tracking-tighter text-gray-900">{{ totalWords }}</p></div>
                     </div>
                     <div class="border-t border-gray-100 pt-8">
-                        <p class="text-[9px] font-bold text-gray-300 uppercase mb-4 tracking-widest">Activity Map (Last 84 Days)</p>
                         <div class="heat-map-container">
-                            <div v-for="cell in activityHeat" :key="cell.id" 
-                                 :class="['heat-cell', cell.count > 0 ? 'heat-cell-active' : '']">
-                            </div>
+                            <div v-for="cell in activityHeat" :key="cell.id" :class="['heat-cell', cell.count > 0 ? 'heat-cell-active' : '']"></div>
                         </div>
                     </div>
                 </div>
-
                 <div class="grid grid-cols-2 gap-4 px-2">
-                    <button @click="exportData" class="btn-card">
-                        <i class="fas fa-file-export"></i>
-                        <span class="btn-label">Export Local</span>
-                        <h4 class="btn-text">导出备份</h4>
-                    </button>
-                    <button @click="$refs.fileInput.click()" class="btn-card">
-                        <i class="fas fa-file-import"></i>
-                        <span class="btn-label">Import Local</span>
-                        <h4 class="btn-text">导入恢复</h4>
-                    </button>
+                    <button @click="exportData" class="btn-card"><i class="fas fa-file-export"></i><span class="btn-label">Export</span><h4 class="btn-text">导出备份</h4></button>
+                    <button @click="$refs.fileInput.click()" class="btn-card"><i class="fas fa-file-import"></i><span class="btn-label">Import</span><h4 class="btn-text">导入恢复</h4></button>
                     <input type="file" ref="fileInput" class="hidden" accept=".json" @change="importData">
-
-                    <button @click="syncCloud('PUT')" class="btn-card">
-                        <i class="fas fa-cloud-arrow-up"></i>
-                        <span class="btn-label">Cloud Save</span>
-                        <h4 class="btn-text">上传云端</h4>
-                    </button>
-                    <button @click="syncCloud('GET')" class="btn-card">
-                        <i class="fas fa-cloud-arrow-down"></i>
-                        <span class="btn-label">Cloud Load</span>
-                        <h4 class="btn-text">云端恢复</h4>
-                    </button>
+                    <button @click="syncCloud('PUT')" class="btn-card"><i class="fas fa-cloud-arrow-up"></i><span class="btn-label">Cloud</span><h4 class="btn-text">上传云端</h4></button>
+                    <button @click="syncCloud('GET')" class="btn-card"><i class="fas fa-cloud-arrow-down"></i><span class="btn-label">Sync</span><h4 class="btn-text">云端恢复</h4></button>
                 </div>
             </section>
         </main>
@@ -148,76 +145,93 @@
     </div>
 
     <script>
-        const { createApp, ref, onMounted, computed } = Vue;
+        const { createApp, ref, onMounted, computed, watch } = Vue;
         createApp({
             setup() {
                 const currentTab = ref(0), subTab = ref(0), showModal = ref(false), diaries = ref([]);
-                const newContent = ref(''), customDate = ref(new Date().toISOString().split('T')[0]), selectedDate = ref(new Date().getDate()), editingTs = ref(null), isSearching = ref(false), searchQuery = ref('');
+                const newContent = ref(''), customDate = ref(new Date().toISOString().split('T')[0]), editingTs = ref(null), isSearching = ref(false), searchQuery = ref('');
                 
+                // 日历核心状态
+                const currentYear = ref(new Date().getFullYear());
+                const currentMonth = ref(new Date().getMonth()); // 0-11
+                const selectedDate = ref(new Date().getDate());
+
                 const saveToLocal = () => localStorage.setItem('diary_final_v2026', JSON.stringify(diaries.value));
                 onMounted(() => { const saved = localStorage.getItem('diary_final_v2026'); if (saved) diaries.value = JSON.parse(saved); });
 
-                const dateSorter = (a, b) => { if (a.date !== b.date) return b.date.localeCompare(a.date); return b.ts - a.ts; };
+                // 计算日历逻辑
+                const daysInMonth = computed(() => new Date(currentYear.value, currentMonth.value + 1, 0).getDate());
+                const firstDayOfWeek = computed(() => new Date(currentYear.value, currentMonth.value, 1).getDay());
+                
+                const isToday = (day) => {
+                    const now = new Date();
+                    return now.getFullYear() === currentYear.value && now.getMonth() === currentMonth.value && now.getDate() === day;
+                };
+
+                const hasDiaryInCal = (day) => {
+                    const dateStr = `${currentYear.value}-${String(currentMonth.value + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                    return diaries.value.some(d => d.date === dateStr);
+                };
+
+                const selectedDayDiaries = computed(() => {
+                    const dateStr = `${currentYear.value}-${String(currentMonth.value + 1).padStart(2, '0')}-${String(selectedDate.value).padStart(2, '0')}`;
+                    return diaries.value.filter(d => d.date === dateStr).sort((a,b) => b.ts - a.ts);
+                });
+
+                const changeMonth = (delta) => {
+                    let newMonth = currentMonth.value + delta;
+                    if (newMonth < 0) { currentMonth.value = 11; currentYear.value--; }
+                    else if (newMonth > 11) { currentMonth.value = 0; currentYear.value++; }
+                    else { currentMonth.value = newMonth; }
+                    selectedDate.value = 1; // 切换月份时默认选中1号
+                };
+
+                // 搜索与列表
                 const filteredDiaries = computed(() => {
                     let list = [...diaries.value];
-                    if (searchQuery.value) return list.filter(d => d.content.includes(searchQuery.value)).sort(dateSorter);
-                    return list.sort(dateSorter);
+                    if (searchQuery.value.trim()) list = list.filter(d => d.content.includes(searchQuery.value));
+                    return list.sort((a,b) => b.date.localeCompare(a.date) || b.ts - a.ts);
                 });
 
                 const totalWords = computed(() => diaries.value.reduce((acc, d) => acc + d.content.length, 0));
-                
-                // 热力图计算核心
                 const activityHeat = computed(() => {
-                    const result = [];
-                    const today = new Date();
+                    const res = []; const now = new Date();
                     for (let i = 83; i >= 0; i--) {
-                        const d = new Date();
-                        d.setDate(today.getDate() - i);
-                        const dateStr = d.toISOString().split('T')[0];
-                        const count = diaries.value.filter(x => x.date === dateStr).length;
-                        result.push({ id: i, date: dateStr, count: count });
+                        const d = new Date(); d.setDate(now.getDate() - i);
+                        const ds = d.toISOString().split('T')[0];
+                        res.push({ id: i, count: diaries.value.filter(x => x.date === ds).length });
                     }
-                    return result;
+                    return res;
                 });
 
                 const exportData = () => {
-                    const dataStr = JSON.stringify(diaries.value, null, 2);
-                    const blob = new Blob([dataStr], { type: "application/json" });
-                    const url = URL.createObjectURL(blob);
-                    const link = document.createElement("a");
-                    link.href = url;
-                    link.download = `大忘日记备份_${new Date().toISOString().split('T')[0]}.json`;
-                    link.click();
-                    URL.revokeObjectURL(url);
+                    const blob = new Blob([JSON.stringify(diaries.value, null, 2)], { type: "application/json" });
+                    const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
+                    a.download = `大忘日记_${new Date().toISOString().split('T')[0]}.json`; a.click();
                 };
 
-                const importData = (event) => {
-                    const file = event.target.files[0];
-                    if (!file) return;
+                const importData = (e) => {
                     const reader = new FileReader();
-                    reader.onload = (e) => {
-                        try {
-                            const data = JSON.parse(e.target.result);
-                            diaries.value = data;
-                            saveToLocal();
-                            alert("✅ 恢复成功！");
-                        } catch (err) { alert("🚨 格式错误"); }
-                    };
-                    reader.readAsText(file);
+                    reader.onload = (ev) => { try { diaries.value = JSON.parse(ev.target.result); saveToLocal(); alert("恢复成功"); } catch(err) { alert("格式错误"); } };
+                    reader.readAsText(e.target.files[0]);
                 };
 
                 const getDayName = (d) => ['日','一','二','三','四','五','六'][new Date(d).getDay()];
                 const getMonthName = (d) => ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][new Date(d).getMonth()];
-                const hasDiary = (day) => diaries.value.some(d => d.date.endsWith(day < 10 ? '0'+day : ''+day));
-
                 const openNewModal = () => { editingTs.value = null; newContent.value = ''; customDate.value = new Date().toISOString().split('T')[0]; showModal.value = true; };
                 const editDiary = (item) => { editingTs.value = item.ts; newContent.value = item.content; customDate.value = item.date; showModal.value = true; };
-                const saveDiary = () => { if (!newContent.value) return; if (editingTs.value) { const idx = diaries.value.findIndex(d => d.ts === editingTs.value); diaries.value[idx] = { ...diaries.value[idx], content: newContent.value, date: customDate.value }; } else { diaries.value.unshift({ content: newContent.value, date: customDate.value, ts: Date.now() }); } saveToLocal(); showModal.value = false; };
-                const deleteDiary = (ts) => { if (confirm("删除？")) { diaries.value = diaries.value.filter(d => d.ts !== ts); saveToLocal(); }};
-                
-                const syncCloud = async (method) => { alert("请进入代码配置 WebDAV。"); };
+                const saveDiary = () => {
+                    if (!newContent.value) return;
+                    if (editingTs.value) {
+                        const idx = diaries.value.findIndex(d => d.ts === editingTs.value);
+                        diaries.value[idx] = { ...diaries.value[idx], content: newContent.value, date: customDate.value };
+                    } else {
+                        diaries.value.unshift({ content: newContent.value, date: customDate.value, ts: Date.now() });
+                    }
+                    saveToLocal(); showModal.value = false;
+                };
 
-                return { currentTab, subTab, showModal, diaries, newContent, customDate, selectedDate, editingTs, isSearching, searchQuery, filteredDiaries, totalWords, activityHeat, exportData, importData, getDayName, getMonthName, hasDiary, openNewModal, editDiary, saveDiary, deleteDiary, syncCloud };
+                return { currentTab, subTab, showModal, diaries, newContent, customDate, isSearching, searchQuery, currentYear, currentMonth, selectedDate, daysInMonth, firstDayOfWeek, isToday, hasDiaryInCal, selectedDayDiaries, changeMonth, filteredDiaries, totalWords, activityHeat, exportData, importData, getDayName, getMonthName, openNewModal, editDiary, saveDiary, deleteDiary: (ts) => { if (confirm("删除？")) { diaries.value = diaries.value.filter(d => d.ts !== ts); saveToLocal(); } } };
             }
         }).mount('#app')
     </script>
