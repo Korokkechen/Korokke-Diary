@@ -15,7 +15,7 @@
         .sub-nav-active { color: #000; font-weight: 800; border-bottom: 2px solid #000; }
         .sub-nav-item { padding: 8px 0; margin: 0 15px; font-size: 14px; color: #aaa; cursor: pointer; }
         .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
-        .calendar-day { aspect-ratio: 1/1; display: flex; align-items: center; justify-content: center; border-radius: 14px; font-size: 13px; background: #fff; position: relative; cursor: pointer; border: 1.5px solid transparent; }
+        .calendar-day { aspect-ratio: 1/1; display: flex; align-items: center; justify-content: center; border-radius: 14px; font-size: 13px; background: #fff; position: relative; cursor: pointer; }
         .has-diary::after { content: ''; width: 4px; height: 4px; background: #ff2442; border-radius: 50%; position: absolute; bottom: 4px; }
         .is-selected { background: #000 !important; color: #fff !important; }
         .heat-map-container { display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; }
@@ -25,6 +25,9 @@
         .meta-btn { width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; border-radius: 12px; background: #f3f4f6; color: #9ca3af; }
         .meta-btn.active { background: #000; color: #fff; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
+        /* 搜索框动画 */
+        .search-enter-active, .search-leave-active { transition: all 0.3s ease; }
+        .search-enter-from, .search-leave-to { opacity: 0; transform: translateY(-10px); }
     </style>
 </head>
 <body>
@@ -33,16 +36,26 @@
             <div class="flex justify-between items-center mb-2 px-2">
                 <div class="w-6"></div>
                 <h1 class="text-[22px] font-black tracking-[0.2em] uppercase text-gray-900">大忘日记</h1>
-                <div @click="isSearching = !isSearching" class="text-gray-400 p-2"><i class="fas fa-search"></i></div>
+                <div @click="isSearching = !isSearching" class="text-gray-400 p-2 cursor-pointer active:scale-90 transition-transform">
+                    <i :class="['fas', isSearching ? 'fa-times' : 'fa-search']"></i>
+                </div>
             </div>
             
+            <transition name="search">
+                <div v-if="isSearching" class="px-2 pb-3">
+                    <input v-model="searchQuery" autofocus 
+                           class="w-full bg-white border border-gray-100 rounded-full px-5 py-2 text-sm focus:outline-none shadow-inner" 
+                           placeholder="搜索日记内容...">
+                </div>
+            </transition>
+
             <div v-if="currentTab === 0">
                 <div class="flex justify-center mt-2 pb-1">
                     <div @click="subTab = 0" :class="['sub-nav-item', subTab === 0 ? 'sub-nav-active' : '']">时间轴</div>
                     <div @click="subTab = 1" :class="['sub-nav-item', subTab === 1 ? 'sub-nav-active' : '']">那年今日</div>
                 </div>
                 <div v-if="subTab === 1" class="px-4 pb-3 flex justify-center">
-                    <input type="date" v-model="historyDate" class="bg-white border-none text-xs font-black uppercase tracking-widest rounded-full px-4 py-1.5 shadow-sm focus:outline-none">
+                    <input type="date" v-model="historyDate" class="bg-white border-none text-[10px] font-black uppercase tracking-widest rounded-full px-4 py-1.5 shadow-sm focus:outline-none">
                 </div>
             </div>
         </header>
@@ -68,7 +81,10 @@
                         <div :class="['text-[11px] font-black italic pt-1', subTab === 1 ? 'text-black' : 'text-gray-300']">{{ item.date.split('-')[0] }}</div>
                     </div>
                     <p class="text-[15px] text-gray-800 leading-relaxed mb-4 whitespace-pre-wrap">{{ item.content }}</p>
-                    <img v-if="item.img" :src="item.img" class="w-full rounded-[24px] object-cover max-h-80 mb-2">
+                    <img v-if="item.img" :src="item.img" class="w-full rounded-[24px] object-cover max-h-80 mb-2 shadow-sm">
+                </div>
+                <div v-if="filteredDiaries.length === 0" class="text-center py-20 text-gray-300 font-bold uppercase tracking-widest text-[10px]">
+                    没有找到匹配的内容
                 </div>
             </section>
 
@@ -93,7 +109,7 @@
                 <div class="space-y-4">
                     <div v-for="item in selectedDayDiaries" :key="item.ts" class="bg-white rounded-[24px] p-5 border relative shadow-sm flex space-x-4">
                         <div class="flex-1">
-                            <div class="text-[10px] font-black text-gray-300 mb-1">{{ item.date.split('-')[0] }} YEAR</div>
+                            <div class="text-[10px] font-black text-gray-300 mb-1 italic">{{ item.date.split('-')[0] }} YEAR</div>
                             <p class="text-sm text-gray-800 line-clamp-3">{{ item.content }}</p>
                         </div>
                         <img v-if="item.img" :src="item.img" class="w-16 h-16 rounded-xl object-cover shadow-sm">
@@ -109,7 +125,7 @@
                         <div><p class="text-[10px] font-bold text-gray-300 uppercase">Words</p><p class="text-4xl font-black italic text-gray-900">{{ totalWords }}</p></div>
                     </div>
                     <div class="border-t pt-8">
-                        <p class="text-[9px] font-black text-gray-300 uppercase mb-4 tracking-widest">Activity Map</p>
+                        <p class="text-[9px] font-black text-gray-300 uppercase mb-4 tracking-widest">Activity Heatmap</p>
                         <div class="heat-map-container">
                             <div v-for="cell in activityHeat" :key="cell.id" :class="['heat-cell', cell.count > 0 ? 'heat-cell-active' : '']"></div>
                         </div>
@@ -126,12 +142,12 @@
         </main>
 
         <nav class="fixed bottom-0 w-full bg-white/80 backdrop-blur-xl border-t flex justify-around items-center pt-4 pb-8 z-[100]">
-            <div @click="currentTab = 0" :class="['flex flex-col items-center w-1/3', currentTab === 0 ? 'text-black' : 'text-gray-300']"><i class="fas fa-book-open mb-1"></i><span class="text-[9px] font-black uppercase">Timeline</span></div>
-            <div @click="currentTab = 1" :class="['flex flex-col items-center w-1/3', currentTab === 1 ? 'text-black' : 'text-gray-300']"><i class="fas fa-calendar-alt mb-1"></i><span class="text-[9px] font-black uppercase">Calendar</span></div>
-            <div @click="currentTab = 2" :class="['flex flex-col items-center w-1/3', currentTab === 2 ? 'text-black' : 'text-gray-300']"><i class="fas fa-user-circle mb-1"></i><span class="text-[9px] font-black uppercase">Profile</span></div>
+            <div @click="currentTab = 0" :class="['flex flex-col items-center w-1/3', currentTab === 0 ? 'text-black' : 'text-gray-300']"><i class="fas fa-book-open mb-1"></i><span class="text-[9px] font-black uppercase tracking-tighter">Timeline</span></div>
+            <div @click="currentTab = 1" :class="['flex flex-col items-center w-1/3', currentTab === 1 ? 'text-black' : 'text-gray-300']"><i class="fas fa-calendar-alt mb-1"></i><span class="text-[9px] font-black uppercase tracking-tighter">Calendar</span></div>
+            <div @click="currentTab = 2" :class="['flex flex-col items-center w-1/3', currentTab === 2 ? 'text-black' : 'text-gray-300']"><i class="fas fa-user-circle mb-1"></i><span class="text-[9px] font-black uppercase tracking-tighter">Profile</span></div>
         </nav>
 
-        <button v-if="currentTab !== 2" @click="openNewModal" class="fixed right-6 bottom-36 w-14 h-14 bg-black text-white rounded-full shadow-2xl flex items-center justify-center z-[150]"><i class="fas fa-plus"></i></button>
+        <button v-if="currentTab !== 2" @click="openNewModal" class="fixed right-6 bottom-36 w-14 h-14 bg-black text-white rounded-full shadow-2xl flex items-center justify-center z-[150] active:scale-90 transition-transform"><i class="fas fa-plus"></i></button>
 
         <div v-if="showModal" class="fixed inset-0 bg-white z-[300] p-8 flex flex-col pt-16">
             <div class="flex justify-between items-center mb-6"><i @click="showModal = false" class="fas fa-times text-gray-300 cursor-pointer p-2"></i><button @click="saveDiary" class="bg-black text-white px-8 py-2 rounded-full font-black text-sm">完成</button></div>
@@ -150,13 +166,13 @@
     </div>
 
     <script>
-        const { createApp, ref, onMounted, computed, watch } = Vue;
+        const { createApp, ref, onMounted, computed } = Vue;
         createApp({
             setup() {
                 const currentTab = ref(0), subTab = ref(0), showModal = ref(false), diaries = ref([]);
                 const newContent = ref(''), previewImg = ref(''), customDate = ref(''), editingTs = ref(null);
                 const selMood = ref(''), selWeather = ref(''), isSearching = ref(false), searchQuery = ref('');
-                const historyDate = ref(new Date().toISOString().split('T')[0]); // 那年今日选择日期
+                const historyDate = ref(new Date().toISOString().split('T')[0]);
                 const calYear = ref(new Date().getFullYear()), calMonth = ref(new Date().getMonth()), selectedDate = ref(new Date().getDate());
 
                 const moods = [{id:'happy', icon:'fas fa-smile'}, {id:'sad', icon:'fas fa-frown'}, {id:'love', icon:'fas fa-heart'}, {id:'cool', icon:'fas fa-sunglasses'}];
@@ -167,12 +183,21 @@
 
                 const filteredDiaries = computed(() => {
                     let list = [...diaries.value];
-                    if (subTab.value === 1) { // 那年今日：匹配选择日期的月和日
+                    
+                    // 1. 先按频道筛选 (时间轴 vs 那年今日)
+                    if (subTab.value === 1) {
                         const parts = historyDate.value.split('-');
                         const mmdd = `${parts[1]}-${parts[2]}`;
                         list = list.filter(d => d.date.endsWith(mmdd));
                     }
-                    if (searchQuery.value.trim()) list = list.filter(d => d.content.includes(searchQuery.value));
+
+                    // 2. 再按搜索关键词筛选
+                    if (isSearching.value && searchQuery.value.trim()) {
+                        const q = searchQuery.value.toLowerCase();
+                        list = list.filter(d => d.content.toLowerCase().includes(q));
+                    }
+
+                    // 3. 排序
                     return list.sort((a,b) => b.date.localeCompare(a.date) || b.ts - a.ts);
                 });
 
@@ -191,14 +216,17 @@
                     daysInCalMonth: computed(() => new Date(calYear.value, calMonth.value + 1, 0).getDate()),
                     firstDayPad: computed(() => new Date(calYear.value, calMonth.value, 1).getDay()),
                     hasDiaryOn: (d) => { const ds = `${calYear.value}-${String(calMonth.value + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`; return diaries.value.some(x => x.date === ds); },
-                    selectedDayDiaries: computed(() => { const ds = `${calYear.value}-${String(calMonth.value + 1).padStart(2, '0')}-${String(selectedDate.value).padStart(2, '0')}`; return diaries.value.filter(x => x.date === ds).sort((a,b) => b.ts - a.ts); }),
+                    selectedDayDiaries: computed(() => { 
+                        const ds = `${calYear.value}-${String(calMonth.value + 1).padStart(2, '0')}-${String(selectedDate.value).padStart(2, '0')}`; 
+                        return diaries.value.filter(x => x.date === ds).sort((a,b) => b.ts - a.ts); 
+                    }),
                     changeMonth: (v) => { let d = new Date(calYear.value, calMonth.value + v, 1); calYear.value = d.getFullYear(); calMonth.value = d.getMonth(); selectedDate.value = 1; },
                     resetToToday: () => { const n = new Date(); calYear.value = n.getFullYear(); calMonth.value = n.getMonth(); selectedDate.value = n.getDate(); },
                     totalWords: computed(() => diaries.value.reduce((a, d) => a + (d.content?.length || 0), 0)),
                     activityHeat: computed(() => { const res = []; const now = new Date(); for (let i = 83; i >= 0; i--) { const d = new Date(); d.setDate(now.getDate() - i); const ds = d.toISOString().split('T')[0]; res.push({ id: i, count: diaries.value.filter(x => x.date === ds).length }); } return res; }),
                     exportData: () => { const b = new Blob([JSON.stringify(diaries.value)], { type: "application/json" }); const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = `大忘备份.json`; a.click(); },
                     importData: (e) => { const r = new FileReader(); r.onload = (ev) => { diaries.value = JSON.parse(ev.target.result); saveToLocal(); alert("导入成功"); }; r.readAsText(e.target.files[0]); },
-                    syncCloud: (m) => alert("云端接口已准备"),
+                    syncCloud: (m) => alert("云端服务已就绪"),
                     getDayName: (d) => ['日','一','二','三','四','五','六'][new Date(d).getDay()],
                     getMonthName: (d) => ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][new Date(d).getMonth()],
                     handleImage: (e) => { const r = new FileReader(); r.onload = (v) => previewImg.value = v.target.result; if (e.target.files[0]) r.readAsDataURL(e.target.files[0]); },
