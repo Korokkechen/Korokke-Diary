@@ -21,12 +21,8 @@
         .heat-map-container { display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; }
         .heat-cell { width: 10px; height: 10px; border-radius: 2px; background: #eee; }
         .heat-cell-active { background: #000 !important; }
-        .btn-card { background: white; border-radius: 28px; padding: 1.25rem; display: flex; flex-direction: column; align-items: flex-start; border: 1px solid #f1f1f1; width: 100%; text-align: left; cursor: pointer; -webkit-tap-highlight-color: rgba(0,0,0,0); }
-        .btn-card:active { background-color: #f9f9f9; transform: scale(0.98); }
-        .no-scrollbar::-webkit-scrollbar { display: none; }
-        .search-enter-active, .search-leave-active { transition: all 0.3s ease; }
-        .search-enter-from, .search-leave-to { opacity: 0; transform: translateY(-10px); }
-        .meta-group { position: absolute; top: 1.5rem; right: 2rem; }
+        .btn-card { background: white; border-radius: 28px; padding: 1.25rem; display: flex; flex-direction: column; align-items: flex-start; border: 1px solid #f1f1f1; width: 100%; text-align: left; cursor: pointer; -webkit-tap-highlight-color: rgba(0,0,0,0); position: relative; z-index: 10; }
+        .btn-card:active { background-color: #f3f3f3; transform: scale(0.98); }
     </style>
 </head>
 <body>
@@ -38,29 +34,22 @@
                 <div @click="isSearching = !isSearching" class="text-gray-400 p-2 cursor-pointer active:scale-90 transition-transform"><i :class="['fas', isSearching ? 'fa-times' : 'fa-search']"></i></div>
             </div>
             <transition name="search"><div v-if="isSearching" class="px-2 pb-3"><input v-model="searchQuery" autofocus class="w-full bg-white border border-gray-100 rounded-full px-5 py-2 text-sm focus:outline-none shadow-inner" placeholder="搜索日记内容..."></div></transition>
-            <div v-if="currentTab === 0">
-                <div class="flex justify-center mt-2 pb-1">
-                    <div @click="subTab = 0" :class="['sub-nav-item', subTab === 0 ? 'sub-nav-active' : '']">时间轴</div>
-                    <div @click="subTab = 1" :class="['sub-nav-item', subTab === 1 ? 'sub-nav-active' : '']">那年今日</div>
-                </div>
+            <div v-if="currentTab === 0" class="flex justify-center mt-2 pb-1">
+                <div @click="subTab = 0" :class="['sub-nav-item', subTab === 0 ? 'sub-nav-active' : '']">时间轴</div>
+                <div @click="subTab = 1" :class="['sub-nav-item', subTab === 1 ? 'sub-nav-active' : '']">那年今日</div>
             </div>
         </header>
 
         <main class="px-4 pb-48 pt-4">
             <section v-if="currentTab === 0" class="space-y-6">
                 <div v-for="item in filteredDiaries" :key="item.ts" class="bg-white rounded-[32px] p-6 shadow-sm border border-gray-50 relative">
-                    <div class="meta-group flex items-center space-x-4">
-                        <div class="text-[11px] font-black italic text-gray-300">{{ item.date.split('-')[0] }}</div>
-                        <div class="flex space-x-3 text-gray-200 text-xs">
-                            <i @click.stop="editDiary(item)" class="fas fa-edit cursor-pointer p-1"></i>
-                            <i @click.stop="deleteDiary(item.ts)" class="fas fa-trash-alt cursor-pointer p-1"></i>
-                        </div>
+                    <div class="absolute top-6 right-6 flex space-x-3 text-gray-200 text-xs">
+                        <i @click.stop="editDiary(item)" class="fas fa-edit p-1 cursor-pointer"></i>
+                        <i @click.stop="deleteDiary(item.ts)" class="fas fa-trash-alt p-1 cursor-pointer"></i>
                     </div>
-                    <div class="flex justify-between items-start mb-4 pr-32">
-                        <div class="flex items-center space-x-3">
-                            <span class="text-3xl font-black text-gray-900">{{ item.date.split('-')[2] }}</span>
-                            <div class="text-[10px] text-gray-400 font-bold leading-tight uppercase">{{ getMonthName(item.date) }}<br>周{{ getDayName(item.date) }}</div>
-                        </div>
+                    <div class="flex items-center space-x-3 mb-4">
+                        <span class="text-3xl font-black text-gray-900">{{ item.date.split('-')[2] }}</span>
+                        <div class="text-[10px] text-gray-400 font-bold leading-tight uppercase">{{ getMonthName(item.date) }}<br>周{{ getDayName(item.date) }}</div>
                     </div>
                     <p class="text-[15px] text-gray-800 leading-relaxed whitespace-pre-wrap">{{ item.content }}</p>
                     <img v-if="item.img" :src="item.img" class="w-full rounded-[24px] object-cover max-h-80 mt-4 shadow-sm">
@@ -92,9 +81,7 @@
                         <div><p class="text-[10px] font-bold text-gray-300 uppercase">Entries</p><p class="text-4xl font-black italic text-gray-900">{{ diaries.length }}</p></div>
                         <div><p class="text-[10px] font-bold text-gray-300 uppercase">Words</p><p class="text-4xl font-black italic text-gray-900">{{ totalWords }}</p></div>
                     </div>
-                    <div class="heat-map-container">
-                        <div v-for="cell in activityHeat" :key="cell.id" :class="['heat-cell', cell.count > 0 ? 'heat-cell-active' : '']"></div>
-                    </div>
+                    <div class="heat-map-container"><div v-for="cell in activityHeat" :key="cell.id" :class="['heat-cell', cell.count > 0 ? 'heat-cell-active' : '']"></div></div>
                 </div>
                 <div class="grid grid-cols-2 gap-4">
                     <div @click="exportData" class="btn-card"><span class="text-[9px] font-bold text-gray-300 uppercase mb-1">Backup</span><h4 class="font-black text-sm">导出备份</h4></div>
@@ -107,14 +94,14 @@
         </main>
 
         <nav class="fixed bottom-0 w-full bg-white/80 backdrop-blur-xl border-t flex justify-around items-center pt-4 pb-8 z-[100]">
-            <div @click="currentTab = 0" :class="['flex flex-col items-center w-1/3', currentTab === 0 ? 'text-black' : 'text-gray-300']"><i class="fas fa-book-open mb-1"></i><span class="text-[9px] font-black uppercase tracking-tighter">Timeline</span></div>
-            <div @click="currentTab = 1" :class="['flex flex-col items-center w-1/3', currentTab === 1 ? 'text-black' : 'text-gray-300']"><i class="fas fa-calendar-alt mb-1"></i><span class="text-[9px] font-black uppercase tracking-tighter">Calendar</span></div>
-            <div @click="currentTab = 2" :class="['flex flex-col items-center w-1/3', currentTab === 2 ? 'text-black' : 'text-gray-300']"><i class="fas fa-user-circle mb-1"></i><span class="text-[9px] font-black uppercase tracking-tighter">Profile</span></div>
+            <div @click="currentTab = 0" :class="['flex flex-col items-center w-1/3 cursor-pointer', currentTab === 0 ? 'text-black' : 'text-gray-300']"><i class="fas fa-book-open mb-1"></i><span class="text-[9px] font-black uppercase">Timeline</span></div>
+            <div @click="currentTab = 1" :class="['flex flex-col items-center w-1/3 cursor-pointer', currentTab === 1 ? 'text-black' : 'text-gray-300']"><i class="fas fa-calendar-alt mb-1"></i><span class="text-[9px] font-black uppercase">Calendar</span></div>
+            <div @click="currentTab = 2" :class="['flex flex-col items-center w-1/3 cursor-pointer', currentTab === 2 ? 'text-black' : 'text-gray-300']"><i class="fas fa-user-circle mb-1"></i><span class="text-[9px] font-black uppercase">Profile</span></div>
         </nav>
         <button v-if="currentTab !== 2" @click="openNewModal" class="fixed right-6 bottom-36 w-14 h-14 bg-black text-white rounded-full shadow-2xl flex items-center justify-center z-[150] active:scale-90 transition-transform"><i class="fas fa-plus"></i></button>
 
         <div v-if="showModal" class="fixed inset-0 bg-white z-[300] p-8 flex flex-col pt-16">
-            <div class="flex justify-between items-center mb-6"><i @click="showModal = false" class="fas fa-times text-gray-300 cursor-pointer p-2"></i><button @click="saveDiary" class="bg-black text-white px-8 py-2 rounded-full font-black text-sm">完成</button></div>
+            <div class="flex justify-between items-center mb-6"><i @click="showModal = false" class="fas fa-times text-gray-300 p-2 cursor-pointer"></i><button @click="saveDiary" class="bg-black text-white px-8 py-2 rounded-full font-black text-sm">完成</button></div>
             <input type="date" v-model="customDate" class="mb-4 bg-gray-50 p-4 rounded-2xl font-bold focus:outline-none">
             <textarea v-model="newContent" class="w-full flex-1 text-xl focus:outline-none resize-none" placeholder="写点什么..."></textarea>
             <div class="py-6 border-t flex items-center space-x-4">
@@ -137,35 +124,57 @@
                 onMounted(() => { const s = localStorage.getItem('diary_v2026_final'); if (s) diaries.value = JSON.parse(s); });
 
                 const handleSync = async (mode) => {
-                    const config = { 
-                        proxy: 'https://cors-anywhere.herokuapp.com/', 
-                        davUrl: 'https://dav.jianguoyun.com/dav/diary/', // 指向 diary 文件夹
-                        user: 'evelyn_1124@live.com', 
-                        pass: 'adar6c3rbakgn85b', 
-                        fileName: 'dawang_diary_v2026.json' 
-                    };
+                    // --- 核心配置区 ---
+                    const user = 'evelyn_1124@live.com'; 
+                    const pass = 'aqvqs8qmcnds9x3m'; 
+                    const folder = 'diary';
+                    const fileName = 'dawang_diary_v2026.json';
+                    // ----------------
+
+                    if (user.includes('你的')) return alert("请在代码中填写账号和应用密码");
+
+                    const proxy = 'https://cors-anywhere.herokuapp.com/';
+                    // 重点：显式编码 URL 路径
+                    const fullUrl = `${proxy}https://dav.jianguoyun.com/dav/${encodeURIComponent(folder)}/${encodeURIComponent(fileName)}`;
                     
-                    if (!config.user || config.user.includes('你的')) return alert("请在代码中配置坚果云账号");
-                    const auth = btoa(`${config.user}:${config.pass}`);
-                    const url = `${config.proxy}${config.davUrl}${config.fileName}`;
+                    // 使用标准的 Base64 编码认证信息
+                    const auth = btoa(user + ':' + pass);
 
                     try {
+                        const headers = {
+                            'Authorization': 'Basic ' + auth,
+                            'Accept': 'application/json, text/plain, */*'
+                        };
+
                         if (mode === 'PUT') {
-                            const res = await fetch(url, { 
-                                method: 'PUT', 
-                                headers: { 'Authorization': `Basic ${auth}`, 'Content-Type': 'application/json' }, 
-                                body: JSON.stringify(diaries.value) 
+                            headers['Content-Type'] = 'application/json;charset=utf-8';
+                            const response = await fetch(fullUrl, {
+                                method: 'PUT',
+                                headers: headers,
+                                body: JSON.stringify(diaries.value)
                             });
-                            if (res.ok || res.status === 201 || res.status === 204) alert("✅ 云端备份成功！");
-                            else alert("❌ 备份失败，错误码：" + res.status + "\n请确认 diary 文件夹及空文件已存在。");
+                            
+                            if (response.ok || [201, 204].includes(response.status)) {
+                                alert("✅ 云端备份成功！");
+                            } else {
+                                alert(`❌ 备份失败 (${response.status})\n请确认坚果云中存在文件夹 [${folder}] 且包含空文件 [${fileName}]`);
+                            }
                         } else {
-                            const res = await fetch(url, { method: 'GET', headers: { 'Authorization': `Basic ${auth}` } });
-                            if (res.ok) {
-                                const data = await res.json();
-                                if (confirm(`找到 ${data.length} 条记录，确定覆盖本地？`)) { diaries.value = data; saveToLocal(); alert("✅ 同步成功！"); }
-                            } else alert("❌ 同步失败，错误码：" + res.status);
+                            const response = await fetch(fullUrl, { method: 'GET', headers: headers });
+                            if (response.ok) {
+                                const cloudData = await response.json();
+                                if (confirm(`找到 ${cloudData.length} 条记录，覆盖本地？`)) {
+                                    diaries.value = cloudData;
+                                    saveToLocal();
+                                    alert("✅ 同步成功！");
+                                }
+                            } else {
+                                alert(`❌ 同步失败 (${response.status})`);
+                            }
                         }
-                    } catch (e) { alert("❌ 网络异常：请确认代理激活状态链接是否已点击。"); }
+                    } catch (err) {
+                        alert(`❌ 网络错误: ${err.message}\n请确保已点击代理激活链接。`);
+                    }
                 };
 
                 return {
