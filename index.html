@@ -10,21 +10,23 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        [v-cloak] { display: none !important; }
+        [v-cloak] { display: none; }
         body { background-color: #f8f8f8; font-family: -apple-system, sans-serif; -webkit-tap-highlight-color: transparent; padding-top: env(safe-area-inset-top); }
         .sub-nav-active { color: #000; font-weight: 800; border-bottom: 2px solid #000; }
         .sub-nav-item { padding: 8px 0; margin: 0 15px; font-size: 14px; color: #aaa; cursor: pointer; }
         .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
-        .calendar-day { aspect-ratio: 1/1; display: flex; align-items: center; justify-content: center; border-radius: 14px; font-size: 13px; background: #fff; position: relative; cursor: pointer; }
+        .calendar-day { aspect-ratio: 1/1; display: flex; align-items: center; justify-content: center; border-radius: 14px; font-size: 13px; background: #fff; position: relative; cursor: pointer; border: 1.5px solid transparent; }
         .has-diary::after { content: ''; width: 4px; height: 4px; background: #ff2442; border-radius: 50%; position: absolute; bottom: 4px; }
         .is-selected { background: #000 !important; color: #fff !important; }
         .heat-map-container { display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; }
         .heat-cell { width: 10px; height: 10px; border-radius: 2px; background: #eee; }
         .heat-cell-active { background: #000 !important; }
-        .btn-card { background: white; border-radius: 28px; padding: 1.25rem; display: flex; flex-direction: column; align-items: flex-start; border: 1px solid #f1f1f1; width: 100%; text-align: left; cursor: pointer; -webkit-appearance: none; position: relative; z-index: 60; }
-        .btn-card:active { opacity: 0.7; transform: scale(0.98); }
-        .btn-card * { pointer-events: none; }
+        .btn-card { background: white; border-radius: 28px; padding: 1.25rem; display: flex; flex-direction: column; align-items: flex-start; border: 1px solid #f1f1f1; width: 100%; text-align: left; cursor: pointer; }
+        .meta-btn { width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; border-radius: 12px; background: #f3f4f6; color: #9ca3af; transition: all 0.2s; }
+        .meta-btn.active { background: #000; color: #fff; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
+        .search-enter-active, .search-leave-active { transition: all 0.3s ease; }
+        .search-enter-from, .search-leave-to { opacity: 0; transform: translateY(-10px); }
         .meta-group { position: absolute; top: 1.5rem; right: 2rem; }
     </style>
 </head>
@@ -36,12 +38,13 @@
                 <h1 class="text-[22px] font-black tracking-[0.2em] uppercase text-gray-900">大忘日记</h1>
                 <div @click="isSearching = !isSearching" class="text-gray-400 p-2 cursor-pointer active:scale-90 transition-transform"><i :class="['fas', isSearching ? 'fa-times' : 'fa-search']"></i></div>
             </div>
-            <div v-if="isSearching" class="px-2 pb-3"><input v-model="searchQuery" autofocus class="w-full bg-white border border-gray-100 rounded-full px-5 py-2 text-sm focus:outline-none shadow-inner" placeholder="搜索日记内容..."></div>
+            <transition name="search"><div v-if="isSearching" class="px-2 pb-3"><input v-model="searchQuery" autofocus class="w-full bg-white border border-gray-100 rounded-full px-5 py-2 text-sm focus:outline-none shadow-inner" placeholder="搜索日记内容..."></div></transition>
             <div v-if="currentTab === 0">
                 <div class="flex justify-center mt-2 pb-1">
                     <div @click="subTab = 0" :class="['sub-nav-item', subTab === 0 ? 'sub-nav-active' : '']">时间轴</div>
                     <div @click="subTab = 1" :class="['sub-nav-item', subTab === 1 ? 'sub-nav-active' : '']">那年今日</div>
                 </div>
+                <div v-if="subTab === 1" class="px-4 pb-3 flex justify-center"><input type="date" v-model="historyDate" class="bg-white border-none text-[10px] font-black uppercase tracking-widest rounded-full px-4 py-1.5 shadow-sm focus:outline-none"></div>
             </div>
         </header>
 
@@ -49,28 +52,39 @@
             <section v-if="currentTab === 0" class="space-y-6">
                 <div v-for="item in filteredDiaries" :key="item.ts" class="bg-white rounded-[32px] p-6 shadow-sm border border-gray-50 relative">
                     <div class="meta-group flex items-center space-x-4">
-                        <div class="text-[11px] font-black italic text-gray-300">{{ item.date.split('-')[0] }}</div>
+                        <div :class="['text-[11px] font-black italic', subTab === 1 ? 'text-black' : 'text-gray-300']">{{ item.date.split('-')[0] }}</div>
                         <div class="flex space-x-3 text-gray-200 text-xs">
-                            <i @click.stop="editDiary(item)" class="fas fa-edit p-1"></i>
-                            <i @click.stop="deleteDiary(item.ts)" class="fas fa-trash-alt p-1"></i>
+                            <i @click.stop="editDiary(item)" class="fas fa-edit cursor-pointer p-1"></i>
+                            <i @click.stop="deleteDiary(item.ts)" class="fas fa-trash-alt cursor-pointer p-1"></i>
                         </div>
                     </div>
-                    <div class="flex items-center space-x-3 mb-4">
-                        <span class="text-3xl font-black">{{ item.date.split('-')[2] }}</span>
-                        <div class="text-[10px] text-gray-400 font-bold leading-tight uppercase">{{ getMonthName(item.date) }}<br>周{{ getDayName(item.date) }}</div>
+                    <div class="flex justify-between items-start mb-4 pr-32">
+                        <div class="flex items-center space-x-3">
+                            <span class="text-3xl font-black text-gray-900">{{ item.date.split('-')[2] }}</span>
+                            <div class="text-[10px] text-gray-400 font-bold leading-tight uppercase">{{ getMonthName(item.date) }}<br>周{{ getDayName(item.date) }}</div>
+                            <div class="flex space-x-1 ml-2 text-gray-300 text-xs">
+                                <i v-if="item.mood" :class="moods.find(m=>m.id===item.mood)?.icon"></i>
+                                <i v-if="item.weather" :class="weathers.find(w=>w.id===item.weather)?.icon"></i>
+                            </div>
+                        </div>
                     </div>
-                    <p class="text-[15px] text-gray-800 leading-relaxed whitespace-pre-wrap">{{ item.content }}</p>
-                    <img v-if="item.img" :src="item.img" class="w-full rounded-[24px] mt-4 shadow-sm">
+                    <div v-if="subTab === 1">
+                        <p :class="['text-[15px] text-gray-800 leading-relaxed whitespace-pre-wrap', !item.isExpanded ? 'line-clamp-2' : '']">{{ item.content }}</p>
+                        <button @click="item.isExpanded = !item.isExpanded" class="mt-3 text-[10px] font-black uppercase tracking-widest text-gray-400">{{ item.isExpanded ? '收起详情' : '展开全文' }}</button>
+                    </div>
+                    <p v-else class="text-[15px] text-gray-800 leading-relaxed mb-4 whitespace-pre-wrap">{{ item.content }}</p>
+                    <img v-if="item.img && (subTab === 0 || item.isExpanded)" :src="item.img" class="w-full rounded-[24px] object-cover max-h-80 mt-2 shadow-sm">
                 </div>
             </section>
 
             <section v-if="currentTab === 1">
-                <div class="bg-white rounded-[32px] p-6 shadow-sm border mb-6">
+                <div class="bg-white rounded-[32px] p-6 shadow-sm border border-gray-50 mb-6">
                     <div class="flex justify-between items-center mb-6 px-2">
                         <button @click="changeMonth(-1)" class="p-3 text-gray-300"><i class="fas fa-chevron-left"></i></button>
-                        <div class="text-center" @click="resetToToday"><span class="text-lg font-black">{{ calYear }}年 {{ calMonth + 1 }}月</span></div>
+                        <div class="text-center" @click="resetToToday"><span class="text-lg font-black text-gray-900">{{ calYear }}年 {{ calMonth + 1 }}月</span></div>
                         <button @click="changeMonth(1)" class="p-3 text-gray-300"><i class="fas fa-chevron-right"></i></button>
                     </div>
+                    <div class="calendar-grid text-center text-[10px] font-bold text-gray-300 mb-4 uppercase"><span>S</span><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span></div>
                     <div class="calendar-grid">
                         <div v-for="empty in firstDayPad" :key="'e'+empty"></div>
                         <div v-for="day in daysInCalMonth" :key="day" @click="selectedDate = day" :class="['calendar-day', hasDiaryOn(day) ? 'has-diary' : '', selectedDate === day ? 'is-selected' : '']">{{ day }}</div>
@@ -78,7 +92,17 @@
                 </div>
                 <div class="space-y-4">
                     <div v-for="item in selectedDayDiaries" :key="item.ts" @click="item.isCalExpanded = !item.isCalExpanded" class="bg-white rounded-[24px] p-5 border relative shadow-sm cursor-pointer">
-                        <p :class="['text-sm', !item.isCalExpanded ? 'line-clamp-2' : 'whitespace-pre-wrap']">{{ item.content }}</p>
+                        <div class="flex space-x-4">
+                            <div class="flex-1">
+                                <div class="text-[10px] font-black text-gray-300 mb-1 italic">{{ item.date.split('-')[0] }} YEAR</div>
+                                <p :class="['text-sm text-gray-800', !item.isCalExpanded ? 'line-clamp-2' : 'whitespace-pre-wrap']">{{ item.content }}</p>
+                            </div>
+                            <img v-if="item.img && !item.isCalExpanded" :src="item.img" class="w-16 h-16 rounded-xl object-cover shadow-sm">
+                        </div>
+                        <div v-if="item.isCalExpanded" class="mt-4 pt-4 border-t border-gray-50">
+                            <img v-if="item.img" :src="item.img" class="w-full rounded-xl object-cover max-h-60 mb-4">
+                            <div class="flex justify-end space-x-4 text-gray-300"><i @click.stop="editDiary(item)" class="fas fa-edit p-2 text-xs"></i><i @click.stop="deleteDiary(item.ts)" class="fas fa-trash-alt p-2 text-xs"></i></div>
+                        </div>
                     </div>
                 </div>
             </section>
@@ -89,59 +113,62 @@
                         <div><p class="text-[10px] font-bold text-gray-300 uppercase">Entries</p><p class="text-4xl font-black italic text-gray-900">{{ diaries.length }}</p></div>
                         <div><p class="text-[10px] font-bold text-gray-300 uppercase">Words</p><p class="text-4xl font-black italic text-gray-900">{{ totalWords }}</p></div>
                     </div>
-                    <div class="heat-map-container"><div v-for="cell in activityHeat" :key="cell.id" :class="['heat-cell', cell.count > 0 ? 'heat-cell-active' : '']"></div></div>
+                    <div class="border-t pt-8">
+                        <p class="text-[9px] font-black text-gray-300 uppercase mb-4 tracking-widest">Activity Map</p>
+                        <div class="heat-map-container"><div v-for="cell in activityHeat" :key="cell.id" :class="['heat-cell', cell.count > 0 ? 'heat-cell-active' : '']"></div></div>
+                    </div>
                 </div>
                 <div class="grid grid-cols-2 gap-4">
-                    <button type="button" @click="exportData" class="btn-card"><span class="text-[9px] font-bold text-gray-300">Backup</span><h4 class="font-black text-sm">导出备份</h4></button>
-                    <button type="button" @click="$refs.fileInput.click()" class="btn-card"><span class="text-[9px] font-bold text-gray-300">Restore</span><h4 class="font-black text-sm">导入恢复</h4></button>
+                    <div @click="exportData" class="btn-card"><span class="text-[9px] font-bold text-gray-300 uppercase mb-1">Backup</span><h4 class="font-black text-sm">导出备份</h4></div>
+                    <div @click="$refs.fileInput.click()" class="btn-card"><span class="text-[9px] font-bold text-gray-300 uppercase mb-1">Restore</span><h4 class="font-black text-sm">导入恢复</h4></div>
                     <input type="file" ref="fileInput" class="hidden" @change="importData">
                     
-                    <button type="button" id="cloudBackupBtn" class="btn-card"><span class="text-[9px] font-bold text-gray-300 uppercase">Cloud</span><h4 class="font-black text-sm">云端备份</h4></button>
-                    <button type="button" id="cloudSyncBtn" class="btn-card"><span class="text-[9px] font-bold text-gray-300 uppercase">Sync</span><h4 class="font-black text-sm">云端恢复</h4></button>
+                    <div @click="handleSync('PUT')" class="btn-card" style="cursor:pointer"><span class="text-[9px] font-bold text-gray-300 uppercase mb-1 text-left">Cloud</span><h4 class="font-black text-sm">云端备份</h4></div>
+                    <div @click="handleSync('GET')" class="btn-card" style="cursor:pointer"><span class="text-[9px] font-bold text-gray-300 uppercase mb-1 text-left">Sync</span><h4 class="font-black text-sm">云端恢复</h4></div>
                 </div>
             </section>
         </main>
 
         <nav class="fixed bottom-0 w-full bg-white/80 backdrop-blur-xl border-t flex justify-around items-center pt-4 pb-8 z-[100]">
-            <div @click="currentTab = 0" :class="currentTab === 0 ? 'text-black' : 'text-gray-300'"><i class="fas fa-book-open"></i></div>
-            <div @click="currentTab = 1" :class="currentTab === 1 ? 'text-black' : 'text-gray-300'"><i class="fas fa-calendar-alt"></i></div>
-            <div @click="currentTab = 2" :class="currentTab === 2 ? 'text-black' : 'text-gray-300'"><i class="fas fa-user-circle"></i></div>
+            <div @click="currentTab = 0" :class="['flex flex-col items-center w-1/3', currentTab === 0 ? 'text-black' : 'text-gray-300']"><i class="fas fa-book-open mb-1"></i><span class="text-[9px] font-black uppercase tracking-tighter">Timeline</span></div>
+            <div @click="currentTab = 1" :class="['flex flex-col items-center w-1/3', currentTab === 1 ? 'text-black' : 'text-gray-300']"><i class="fas fa-calendar-alt mb-1"></i><span class="text-[9px] font-black uppercase tracking-tighter">Calendar</span></div>
+            <div @click="currentTab = 2" :class="['flex flex-col items-center w-1/3', currentTab === 2 ? 'text-black' : 'text-gray-300']"><i class="fas fa-user-circle mb-1"></i><span class="text-[9px] font-black uppercase tracking-tighter">Profile</span></div>
         </nav>
-        <button v-if="currentTab !== 2" @click="openNewModal" class="fixed right-6 bottom-36 w-14 h-14 bg-black text-white rounded-full shadow-2xl flex items-center justify-center z-[150]"><i class="fas fa-plus"></i></button>
+        <button v-if="currentTab !== 2" @click="openNewModal" class="fixed right-6 bottom-36 w-14 h-14 bg-black text-white rounded-full shadow-2xl flex items-center justify-center z-[150] active:scale-90 transition-transform"><i class="fas fa-plus"></i></button>
 
         <div v-if="showModal" class="fixed inset-0 bg-white z-[300] p-8 flex flex-col pt-16">
             <div class="flex justify-between items-center mb-6"><i @click="showModal = false" class="fas fa-times text-gray-300 cursor-pointer p-2"></i><button @click="saveDiary" class="bg-black text-white px-8 py-2 rounded-full font-black text-sm">完成</button></div>
+            <input type="date" v-model="customDate" class="mb-4 bg-gray-50 p-4 rounded-2xl font-bold focus:outline-none">
+            <div class="flex space-x-2 mb-4 overflow-x-auto no-scrollbar pb-2">
+                <div v-for="m in moods" :key="m.id" @click="selMood = m.id" :class="['meta-btn', selMood === m.id ? 'active' : '']"><i :class="m.icon"></i></div>
+                <div v-for="w in weathers" :key="w.id" @click="selWeather = w.id" :class="['meta-btn', selWeather === w.id ? 'active' : '']"><i :class="w.icon"></i></div>
+            </div>
             <textarea v-model="newContent" class="w-full flex-1 text-xl focus:outline-none resize-none" placeholder="写点什么..."></textarea>
+            <div class="py-6 border-t flex items-center space-x-4">
+                <label class="text-gray-300 p-2 cursor-pointer"><i class="far fa-image text-2xl"></i><input type="file" class="hidden" accept="image/*" @change="handleImage"></label>
+                <div v-if="previewImg" class="relative w-16 h-16 rounded-xl overflow-hidden"><img :src="previewImg" class="w-full h-full object-cover"><div @click="previewImg = ''" class="absolute inset-0 bg-black/40 flex items-center justify-center"><i class="fas fa-times text-white text-xs"></i></div></div>
+            </div>
         </div>
     </div>
 
     <script>
-        const { createApp, ref, onMounted, computed, nextTick } = Vue;
+        const { createApp, ref, onMounted, computed } = Vue;
         createApp({
             setup() {
                 const currentTab = ref(0), subTab = ref(0), showModal = ref(false), diaries = ref([]);
                 const newContent = ref(''), previewImg = ref(''), customDate = ref(''), editingTs = ref(null);
-                const isSearching = ref(false), searchQuery = ref(''), calYear = ref(2026), calMonth = ref(new Date().getMonth()), selectedDate = ref(new Date().getDate());
+                const selMood = ref(''), selWeather = ref(''), isSearching = ref(false), searchQuery = ref('');
+                const historyDate = ref(new Date().toISOString().split('T')[0]);
+                const calYear = ref(2026), calMonth = ref(new Date().getMonth()), selectedDate = ref(new Date().getDate());
+                const moods = [{id:'calm', icon:'fas fa-meh'}, {id:'happy', icon:'fas fa-smile'}, {id:'sad', icon:'fas fa-frown'}, {id:'bliss', icon:'fas fa-laugh-beam'}];
+                const weathers = [{id:'sun', icon:'fas fa-sun'}, {id:'cloud', icon:'fas fa-cloud'}, {id:'rain', icon:'fas fa-cloud-showers-heavy'}, {id:'snow', icon:'fas fa-snowflake'}];
 
                 const saveToLocal = () => localStorage.setItem('diary_v2026_final', JSON.stringify(diaries.value));
-                onMounted(() => { 
-                    const s = localStorage.getItem('diary_v2026_final'); 
-                    if (s) diaries.value = JSON.parse(s);
-                });
+                onMounted(() => { const s = localStorage.getItem('diary_v2026_final'); if (s) diaries.value = JSON.parse(s).map(d => ({...d, isExpanded: false, isCalExpanded: false})); });
 
-                // 核心：手动绑定事件，这是对付 Safari 顽疾的终极方案
-                const initButtons = () => {
-                    const backupBtn = document.getElementById('cloudBackupBtn');
-                    const syncBtn = document.getElementById('cloudSyncBtn');
-                    if(backupBtn) backupBtn.addEventListener('click', () => handleSync('PUT'));
-                    if(syncBtn) syncBtn.addEventListener('click', () => handleSync('GET'));
-                };
-
-                // 监听 Tab 切换，确保按钮渲染后立即绑定
-                Vue.watch(currentTab, (newVal) => { if(newVal === 2) nextTick(() => initButtons()); });
-
+                // 核心同步逻辑
                 const handleSync = async (mode) => {
-                    const config = { proxy: 'https://cors-anywhere.herokuapp.com/', davUrl: 'https://dav.jianguoyun.com/dav/', user: 'evelyn_1124@live.com', pass: 'adar6c3rbakgn85b', fileName: 'dawang_diary_v2026.json' };
+                    const config = { proxy: 'https://cors-anywhere.herokuapp.com/', davUrl: 'https://dav.jianguoyun.com/dav/', user: 'test', pass: '你的应用第三方密码', fileName: 'dawang_diary_v2026.json' };
                     if (!config.user || config.user.includes('你的')) return alert("请在代码中配置坚果云账号");
                     const auth = btoa(`${config.user}:${config.pass}`);
                     const url = `${config.proxy}${config.davUrl}${config.fileName}`;
@@ -154,28 +181,37 @@
                             const res = await fetch(url, { method: 'GET', headers: { 'Authorization': `Basic ${auth}` } });
                             if (res.ok) {
                                 const data = await res.json();
-                                if (confirm(`确认覆盖本地？`)) { diaries.value = data; saveToLocal(); alert("✅ 同步成功！"); }
+                                if (confirm(`确认同步云端记录？`)) { diaries.value = data; saveToLocal(); alert("✅ 同步成功！"); }
                             } else alert("❌ 未找到备份");
                         }
                     } catch (e) { alert("网络连接超时"); }
                 };
 
                 return {
-                    currentTab, subTab, showModal, diaries, newContent, isSearching, searchQuery, calYear, calMonth, selectedDate,
-                    filteredDiaries: computed(() => [...diaries.value].sort((a,b) => b.ts - a.ts)),
+                    handleSync, currentTab, subTab, showModal, diaries, newContent, previewImg, customDate, isSearching, searchQuery, historyDate, calYear, calMonth, selectedDate, moods, weathers, selMood, selWeather,
+                    filteredDiaries: computed(() => {
+                        let list = [...diaries.value];
+                        if (subTab.value === 1) list = list.filter(d => d.date.endsWith(historyDate.value.slice(4)));
+                        if (isSearching.value && searchQuery.value.trim()) { const q = searchQuery.value.toLowerCase(); list = list.filter(d => d.content.toLowerCase().includes(q)); }
+                        return list.sort((a,b) => b.date.localeCompare(a.date) || b.ts - a.ts);
+                    }),
                     daysInCalMonth: computed(() => new Date(calYear.value, calMonth.value + 1, 0).getDate()),
                     firstDayPad: computed(() => new Date(calYear.value, calMonth.value, 1).getDay()),
-                    hasDiaryOn: (d) => diaries.value.some(x => x.date === `2026-${String(calMonth.value + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`),
-                    selectedDayDiaries: computed(() => diaries.value.filter(x => x.date === `2026-${String(calMonth.value + 1).padStart(2, '0')}-${String(selectedDate.value).padStart(2, '0')}`)),
-                    changeMonth: (v) => { calMonth.value += v; },
+                    hasDiaryOn: (d) => diaries.value.some(x => x.date === `${calYear.value}-${String(calMonth.value + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`),
+                    selectedDayDiaries: computed(() => diaries.value.filter(x => x.date === `${calYear.value}-${String(calMonth.value + 1).padStart(2, '0')}-${String(selectedDate.value).padStart(2, '0')}`).sort((a,b) => b.ts - a.ts)),
+                    changeMonth: (v) => { let d = new Date(calYear.value, calMonth.value + v, 1); calYear.value = d.getFullYear(); calMonth.value = d.getMonth(); selectedDate.value = 1; },
+                    resetToToday: () => { const n = new Date(); calYear.value = n.getFullYear(); calMonth.value = n.getMonth(); selectedDate.value = n.getDate(); },
                     totalWords: computed(() => diaries.value.reduce((a, d) => a + (d.content?.length || 0), 0)),
-                    activityHeat: computed(() => { const res = []; for (let i = 0; i < 84; i++) res.push({ id: i, count: 0 }); return res; }),
+                    activityHeat: computed(() => { const res = []; const now = new Date(); for (let i = 83; i >= 0; i--) { const d = new Date(); d.setDate(now.getDate() - i); res.push({ id: i, count: diaries.value.filter(x => x.date === d.toISOString().split('T')[0]).length }); } return res; }),
                     exportData: () => { const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([JSON.stringify(diaries.value)], { type: "application/json" })); a.download = `大忘备份.json`; a.click(); },
                     importData: (e) => { const r = new FileReader(); r.onload = (ev) => { diaries.value = JSON.parse(ev.target.result); saveToLocal(); alert("导入成功"); }; r.readAsText(e.target.files[0]); },
                     getDayName: (d) => ['日','一','二','三','四','五','六'][new Date(d).getDay()],
                     getMonthName: (d) => ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][new Date(d).getMonth()],
-                    openNewModal: () => { newContent.value = ''; showModal.value = true; },
-                    saveDiary: () => { diaries.value.unshift({ content: newContent.value, ts: Date.now(), date: new Date().toISOString().split('T')[0] }); saveToLocal(); showModal.value = false; }
+                    handleImage: (e) => { const r = new FileReader(); r.onload = (v) => previewImg.value = v.target.result; if (e.target.files[0]) r.readAsDataURL(e.target.files[0]); },
+                    openNewModal: () => { editingTs.value = null; newContent.value = ''; previewImg.value = ''; selMood.value = ''; selWeather.value = ''; customDate.value = new Date().toISOString().split('T')[0]; showModal.value = true; },
+                    editDiary: (i) => { editingTs.value = i.ts; newContent.value = i.content; previewImg.value = i.img || ''; customDate.value = i.date; selMood.value = i.mood || ''; selWeather.value = i.weather || ''; showModal.value = true; },
+                    deleteDiary: (ts) => { if (confirm("确定删除？")) { diaries.value = diaries.value.filter(x => x.ts !== ts); saveToLocal(); } },
+                    saveDiary: () => { if (!newContent.value && !previewImg.value) return; const d = { content: newContent.value, img: previewImg.value, date: customDate.value, mood: selMood.value, weather: selWeather.value, ts: editingTs.value || Date.now() }; if (editingTs.value) { const i = diaries.value.findIndex(x => x.ts === editingTs.value); diaries.value[i] = d; } else diaries.value.unshift(d); saveToLocal(); showModal.value = false; }
                 };
             }
         }).mount('#app')
