@@ -51,7 +51,7 @@
                     <div @click="subTab = 1" :class="['sub-nav-item', subTab === 1 ? 'sub-nav-active' : '']">那年今日</div>
                 </div>
                 <div v-if="subTab === 1" class="px-4 pb-3 flex justify-center">
-                    <input type="date" v-model="historyDate" class="bg-white border-none text-[10px] font-black uppercase tracking-widest rounded-full px-4 py-1.5 shadow-sm focus:outline-none">
+                    <input type="date" v-model="historyDate" class="bg-white border-none text-[10px] font-black uppercase tracking-widest rounded-full px-4 py-1.5 shadow-sm focus:outline-none text-center">
                 </div>
             </div>
         </header>
@@ -60,11 +60,15 @@
             <section v-if="currentTab === 0" class="space-y-6">
                 <div v-for="item in filteredDiaries" :key="item.ts" class="bg-white rounded-[32px] p-6 shadow-sm border border-gray-50 relative">
                     <div class="absolute top-6 right-6 flex items-center space-x-3">
-                        <span class="text-xs font-bold text-gray-300 italic">{{ item.weather }}</span>
+                        <div class="flex items-center space-x-2 mr-1">
+                            <span class="text-[11px] font-black italic text-gray-200">{{ item.date.split('-')[0] }}</span>
+                            <span class="text-gray-100">|</span>
+                            <span class="text-xs font-bold text-gray-300 italic">{{ item.weather }}</span>
+                        </div>
                         <span class="text-lg">{{ item.mood }}</span>
-                        <div class="flex space-x-2 text-gray-200 text-xs ml-2">
-                            <i @click.stop="editDiary(item)" class="fas fa-edit p-1 cursor-pointer"></i>
-                            <i @click.stop="deleteDiary(item.ts)" class="fas fa-trash-alt p-1 cursor-pointer"></i>
+                        <div class="flex space-x-2 text-gray-100 text-xs ml-1">
+                            <i @click.stop="editDiary(item)" class="fas fa-edit p-1 cursor-pointer hover:text-gray-400"></i>
+                            <i @click.stop="deleteDiary(item.ts)" class="fas fa-trash-alt p-1 cursor-pointer hover:text-red-400"></i>
                         </div>
                     </div>
                     <div class="flex items-center space-x-3 mb-4">
@@ -119,8 +123,8 @@
                     <div @click="exportData" class="btn-card"><span class="text-[9px] font-bold text-gray-300 uppercase mb-1">Backup</span><h4 class="font-black text-sm">导出本地</h4></div>
                     <div @click="$refs.fileInput.click()" class="btn-card"><span class="text-[9px] font-bold text-gray-300 uppercase mb-1">Restore</span><h4 class="font-black text-sm">导入恢复</h4></div>
                     <input type="file" ref="fileInput" class="hidden" @change="importData">
-                    <div @click="handleSync('PUT')" class="btn-card"><span class="text-[9px] font-bold text-gray-300 uppercase mb-1">Cloud</span><h4 class="font-black text-sm text-red-500">云端备份</h4></div>
-                    <div @click="handleSync('GET')" class="btn-card"><span class="text-[9px] font-bold text-gray-300 uppercase mb-1">Sync</span><h4 class="font-black text-sm text-blue-500">云端同步</h4></div>
+                    <div @click="handleSync('PUT')" class="btn-card text-red-500"><span class="text-[9px] font-bold text-gray-300 uppercase mb-1 font-normal">Cloud</span><h4 class="font-black text-sm">云端备份</h4></div>
+                    <div @click="handleSync('GET')" class="btn-card text-blue-500"><span class="text-[9px] font-bold text-gray-300 uppercase mb-1 font-normal">Sync</span><h4 class="font-black text-sm">云端同步</h4></div>
                 </div>
             </section>
         </main>
@@ -169,7 +173,7 @@
             setup() {
                 const currentTab = ref(0), subTab = ref(0), showModal = ref(false), diaries = ref([]);
                 const newContent = ref(''), previewImg = ref(''), customDate = ref(''), editingTs = ref(null);
-                const newMood = ref('😊'), newWeather = ref('晴'); // 初始化心情天气
+                const newMood = ref('😊'), newWeather = ref('晴');
                 const isSearching = ref(false), searchQuery = ref('');
                 const historyDate = ref(new Date().toISOString().split('T')[0]);
                 const calYear = ref(2026), calMonth = ref(new Date().getMonth()), selectedDate = ref(new Date().getDate());
@@ -197,7 +201,6 @@
                             headers['Content-Type'] = 'application/json;charset=utf-8';
                             const res = await fetch(fullUrl, { method: 'PUT', headers, body: JSON.stringify(diaries.value) });
                             if (res.ok || [201, 204].includes(res.status)) alert("✅ 云端备份成功！");
-                            else alert(`❌ 失败 (${res.status})`);
                         } else {
                             const res = await fetch(fullUrl, { method: 'GET', headers });
                             if (res.ok) {
@@ -205,7 +208,7 @@
                                 if (confirm(`找到 ${data.length} 条记录，覆盖本地？`)) {
                                     diaries.value = data; saveToLocal(); alert("✅ 同步成功！");
                                 }
-                            } else alert(`❌ 同步失败 (${res.status})`);
+                            }
                         }
                     } catch (err) { alert(`❌ 网络错误: ${err.message}`); }
                 };
@@ -241,17 +244,4 @@
                         return res;
                     }),
                     exportData: () => { const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([JSON.stringify(diaries.value)], { type: "application/json" })); a.download = `大忘日记_备份.json`; a.click(); },
-                    importData: (e) => { const r = new FileReader(); r.onload = (ev) => { try { diaries.value = JSON.parse(ev.target.result); saveToLocal(); alert("导入成功"); } catch(e) { alert("文件错误"); } }; r.readAsText(e.target.files[0]); },
-                    getDayName: (d) => ['日','一','二','三','四','五','六'][new Date(d).getDay()],
-                    getMonthName: (d) => ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][new Date(d).getMonth()],
-                    handleImage: (e) => { const r = new FileReader(); r.onload = (v) => previewImg.value = v.target.result; if (e.target.files[0]) r.readAsDataURL(e.target.files[0]); },
-                    openNewModal: () => { editingTs.value = null; newContent.value = ''; previewImg.value = ''; newMood.value = '😊'; newWeather.value = '晴'; customDate.value = new Date().toISOString().split('T')[0]; showModal.value = true; },
-                    editDiary: (i) => { editingTs.value = i.ts; newContent.value = i.content; previewImg.value = i.img || ''; newMood.value = i.mood || '😊'; newWeather.value = i.weather || '晴'; customDate.value = i.date; showModal.value = true; },
-                    deleteDiary: (ts) => { if (confirm("确定删除吗？")) { diaries.value = diaries.value.filter(x => x.ts !== ts); saveToLocal(); } },
-                    saveDiary: () => { if (!newContent.value && !previewImg.value) return; const d = { content: newContent.value, img: previewImg.value, date: customDate.value, ts: editingTs.value || Date.now(), isCalExpanded: false, mood: newMood.value, weather: newWeather.value }; if (editingTs.value) { const i = diaries.value.findIndex(x => x.ts === editingTs.value); diaries.value[i] = d; } else diaries.value.unshift(d); saveToLocal(); showModal.value = false; }
-                };
-            }
-        }).mount('#app')
-    </script>
-</body>
-</html>
+                    importData: (e) => { const r = new FileReader(); r.onload = (ev) => { try { diaries.value = JSON.parse(
