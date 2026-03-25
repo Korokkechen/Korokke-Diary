@@ -122,9 +122,8 @@
                     <div @click="exportData" class="btn-card"><span class="text-[9px] font-bold text-gray-300 uppercase mb-1">Backup</span><h4 class="font-black text-sm">导出备份</h4></div>
                     <div @click="$refs.fileInput.click()" class="btn-card"><span class="text-[9px] font-bold text-gray-300 uppercase mb-1">Restore</span><h4 class="font-black text-sm">导入恢复</h4></div>
                     <input type="file" ref="fileInput" class="hidden" @change="importData">
-                    
-                    <div @click="handleSync('PUT')" class="btn-card" style="cursor:pointer"><span class="text-[9px] font-bold text-gray-300 uppercase mb-1 text-left">Cloud</span><h4 class="font-black text-sm">云端备份</h4></div>
-                    <div @click="handleSync('GET')" class="btn-card" style="cursor:pointer"><span class="text-[9px] font-bold text-gray-300 uppercase mb-1 text-left">Sync</span><h4 class="font-black text-sm">云端恢复</h4></div>
+                    <div @click="handleSync('PUT')" class="btn-card"><span class="text-[9px] font-bold text-gray-300 uppercase mb-1">Cloud</span><h4 class="font-black text-sm">云端备份</h4></div>
+                    <div @click="handleSync('GET')" class="btn-card"><span class="text-[9px] font-bold text-gray-300 uppercase mb-1">Sync</span><h4 class="font-black text-sm">云端恢复</h4></div>
                 </div>
             </section>
         </main>
@@ -166,9 +165,8 @@
                 const saveToLocal = () => localStorage.setItem('diary_v2026_final', JSON.stringify(diaries.value));
                 onMounted(() => { const s = localStorage.getItem('diary_v2026_final'); if (s) diaries.value = JSON.parse(s).map(d => ({...d, isExpanded: false, isCalExpanded: false})); });
 
-                // 核心同步逻辑
                 const handleSync = async (mode) => {
-                    const config = { proxy: 'https://cors-anywhere.herokuapp.com/', davUrl: 'https://dav.jianguoyun.com/dav/', user: 'test', pass: '你的应用第三方密码', fileName: 'dawang_diary_v2026.json' };
+                    const config = { proxy: 'https://cors-anywhere.herokuapp.com/', davUrl: 'https://dav.jianguoyun.com/dav/', user: '你的坚果云账号', pass: '你的应用第三方密码', fileName: 'dawang_diary_v2026.json' };
                     if (!config.user || config.user.includes('你的')) return alert("请在代码中配置坚果云账号");
                     const auth = btoa(`${config.user}:${config.pass}`);
                     const url = `${config.proxy}${config.davUrl}${config.fileName}`;
@@ -181,14 +179,15 @@
                             const res = await fetch(url, { method: 'GET', headers: { 'Authorization': `Basic ${auth}` } });
                             if (res.ok) {
                                 const data = await res.json();
-                                if (confirm(`确认同步云端记录？`)) { diaries.value = data; saveToLocal(); alert("✅ 同步成功！"); }
+                                if (confirm(`找到 ${data.length} 条记录，覆盖本地？`)) { diaries.value = data; saveToLocal(); alert("✅ 同步成功！"); }
                             } else alert("❌ 未找到备份");
                         }
-                    } catch (e) { alert("网络连接超时"); }
+                    } catch (e) { alert("网络连接失败，请确认网络状态"); }
                 };
 
                 return {
-                    handleSync, currentTab, subTab, showModal, diaries, newContent, previewImg, customDate, isSearching, searchQuery, historyDate, calYear, calMonth, selectedDate, moods, weathers, selMood, selWeather,
+                    handleSync,
+                    currentTab, subTab, showModal, diaries, newContent, previewImg, customDate, isSearching, searchQuery, historyDate, calYear, calMonth, selectedDate, moods, weathers, selMood, selWeather,
                     filteredDiaries: computed(() => {
                         let list = [...diaries.value];
                         if (subTab.value === 1) list = list.filter(d => d.date.endsWith(historyDate.value.slice(4)));
