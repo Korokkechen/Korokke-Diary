@@ -194,7 +194,6 @@
                 const historyDate = ref(new Date().toISOString().split('T')[0]);
                 const calYear = ref(new Date().getFullYear()), calMonth = ref(new Date().getMonth()), selectedDate = ref(new Date().getDate());
 
-                // 精确修正：顺序：平静、开心、不开心、幸福。图标全部统一为人脸。
                 const moods = [
                     {id:'calm', icon:'fas fa-meh'}, 
                     {id:'happy', icon:'fas fa-smile'}, 
@@ -237,6 +236,62 @@
                     saveToLocal(); showModal.value = false;
                 };
 
+                // 精确集成：坚果云同步逻辑
+                const syncCloud = async (mode) => {
+                    const config = {
+                        proxy: 'https://cors-anywhere.herokuapp.com/', 
+                        davUrl: 'https://dav.jianguoyun.com/dav/',
+                        user: 'evelyn_1124@live.com',
+                        pass: 'adar6c3rbakgn85b',
+                        fileName: 'dawang_diary_v2026.json'
+                    };
+
+                    if (!config.user || config.user === '你的坚果云账号') {
+                        alert("请先在代码中配置您的坚果云账号和应用密码！");
+                        return;
+                    }
+
+                    const auth = btoa(`${config.user}:${config.pass}`);
+                    const targetUrl = `${config.proxy}${config.davUrl}${config.fileName}`;
+
+                    try {
+                        if (mode === 'PUT') {
+                            const res = await fetch(targetUrl, {
+                                method: 'PUT',
+                                headers: {
+                                    'Authorization': `Basic ${auth}`,
+                                    'Content-Type': 'application/json',
+                                    'X-Requested-With': 'XMLHttpRequest'
+                                },
+                                body: JSON.stringify(diaries.value)
+                            });
+                            if (res.ok) alert("✅ 云端备份成功！");
+                            else if (res.status === 403) alert("❌ 代理授权：请访问代理官网点击确认按钮。");
+                            else throw new Error("同步失败");
+                        } else {
+                            const res = await fetch(targetUrl, {
+                                method: 'GET',
+                                headers: {
+                                    'Authorization': `Basic ${auth}`,
+                                    'X-Requested-With': 'XMLHttpRequest'
+                                }
+                            });
+                            if (res.ok) {
+                                const data = await res.json();
+                                if (confirm(`发现云端记录 ${data.length} 条，是否覆盖本地？`)) {
+                                    diaries.value = data.map(d => ({...d, isExpanded: false, isCalExpanded: false}));
+                                    saveToLocal();
+                                    alert("✅ 同步成功！");
+                                }
+                            } else {
+                                alert("❌ 未找到云端备份或同步出错");
+                            }
+                        }
+                    } catch (err) {
+                        alert("连接失败：请确保网络通畅或已激活跨域代理权限。");
+                    }
+                };
+
                 return { 
                     currentTab, subTab, showModal, diaries, newContent, previewImg, customDate, isSearching, searchQuery, historyDate, calYear, calMonth, selectedDate, moods, weathers, selMood, selWeather, filteredDiaries,
                     daysInCalMonth: computed(() => new Date(calYear.value, calMonth.value + 1, 0).getDate()),
@@ -249,7 +304,7 @@
                     activityHeat: computed(() => { const res = []; const now = new Date(); for (let i = 83; i >= 0; i--) { const d = new Date(); d.setDate(now.getDate() - i); const ds = d.toISOString().split('T')[0]; res.push({ id: i, count: diaries.value.filter(x => x.date === ds).length }); } return res; }),
                     exportData: () => { const b = new Blob([JSON.stringify(diaries.value)], { type: "application/json" }); const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = `大忘备份.json`; a.click(); },
                     importData: (e) => { const r = new FileReader(); r.onload = (ev) => { diaries.value = JSON.parse(ev.target.result).map(d => ({...d, isExpanded: false, isCalExpanded: false})); saveToLocal(); alert("导入成功"); }; r.readAsText(e.target.files[0]); },
-                    syncCloud: (m) => alert("正在连接坚果云..."),
+                    syncCloud,
                     getDayName: (d) => ['日','一','二','三','四','五','六'][new Date(d).getDay()],
                     getMonthName: (d) => ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][new Date(d).getMonth()],
                     handleImage: (e) => { const r = new FileReader(); r.onload = (v) => previewImg.value = v.target.result; if (e.target.files[0]) r.readAsDataURL(e.target.files[0]); },
