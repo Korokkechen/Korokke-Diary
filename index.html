@@ -68,7 +68,6 @@
                             <i @click.stop="deleteDiary(item.ts)" class="fas fa-trash-alt cursor-pointer p-1"></i>
                         </div>
                     </div>
-
                     <div class="flex justify-between items-start mb-4 pr-32">
                         <div class="flex items-center space-x-3">
                             <span class="text-3xl font-black text-gray-900">{{ item.date.split('-')[2] }}</span>
@@ -81,7 +80,6 @@
                             </div>
                         </div>
                     </div>
-
                     <div v-if="subTab === 1">
                         <p :class="['text-[15px] text-gray-800 leading-relaxed whitespace-pre-wrap', !item.isExpanded ? 'line-clamp-2' : '']">{{ item.content }}</p>
                         <img v-if="item.img && item.isExpanded" :src="item.img" class="w-full rounded-[24px] object-cover max-h-80 mt-4 shadow-sm">
@@ -89,7 +87,6 @@
                             {{ item.isExpanded ? '收起详情' : '展开全文' }}
                         </button>
                     </div>
-                    
                     <div v-else>
                         <p class="text-[15px] text-gray-800 leading-relaxed mb-4 whitespace-pre-wrap">{{ item.content }}</p>
                         <img v-if="item.img" :src="item.img" class="w-full rounded-[24px] object-cover max-h-80 mb-2 shadow-sm">
@@ -185,7 +182,7 @@
     </div>
 
     <script>
-        const { createApp, ref, onMounted, computed, reactive } = Vue;
+        const { createApp, ref, onMounted, computed } = Vue;
         createApp({
             setup() {
                 const currentTab = ref(0), subTab = ref(0), showModal = ref(false), diaries = ref([]);
@@ -203,22 +200,14 @@
                 const weathers = [{id:'sun', icon:'fas fa-sun'}, {id:'cloud', icon:'fas fa-cloud'}, {id:'rain', icon:'fas fa-cloud-showers-heavy'}, {id:'snow', icon:'fas fa-snowflake'}];
 
                 const saveToLocal = () => localStorage.setItem('diary_v2026_final', JSON.stringify(diaries.value));
-                
                 onMounted(() => { 
                     const s = localStorage.getItem('diary_v2026_final'); 
-                    if (s) {
-                        const raw = JSON.parse(s);
-                        diaries.value = raw.map(d => ({...d, isExpanded: false, isCalExpanded: false}));
-                    }
+                    if (s) diaries.value = JSON.parse(s).map(d => ({...d, isExpanded: false, isCalExpanded: false}));
                 });
 
                 const filteredDiaries = computed(() => {
                     let list = [...diaries.value];
-                    if (subTab.value === 1) {
-                        const parts = historyDate.value.split('-');
-                        const mmdd = `${parts[1]}-${parts[2]}`;
-                        list = list.filter(d => d.date.endsWith(mmdd));
-                    }
+                    if (subTab.value === 1) list = list.filter(d => d.date.endsWith(historyDate.value.slice(4)));
                     if (isSearching.value && searchQuery.value.trim()) {
                         const q = searchQuery.value.toLowerCase();
                         list = list.filter(d => d.content.toLowerCase().includes(q));
@@ -226,31 +215,16 @@
                     return list.sort((a,b) => b.date.localeCompare(a.date) || b.ts - a.ts);
                 });
 
-                const saveDiary = () => {
-                    if (!newContent.value && !previewImg.value) return;
-                    const d = { content: newContent.value, img: previewImg.value, date: customDate.value, mood: selMood.value, weather: selWeather.value, ts: editingTs.value || Date.now(), isExpanded: false, isCalExpanded: false };
-                    if (editingTs.value) {
-                        const i = diaries.value.findIndex(x => x.ts === editingTs.value);
-                        diaries.value[i] = d;
-                    } else { diaries.value.unshift(d); }
-                    saveToLocal(); showModal.value = false;
-                };
-
-                // 精确集成：坚果云同步逻辑
                 const syncCloud = async (mode) => {
                     const config = {
                         proxy: 'https://cors-anywhere.herokuapp.com/', 
                         davUrl: 'https://dav.jianguoyun.com/dav/',
-                        user: 'evelyn_1124@live.com',
-                        pass: 'adar6c3rbakgn85b',
+                        user: '你的坚果云账号', // 替换此处
+                        pass: '你的应用第三方密码', // 替换此处
                         fileName: 'dawang_diary_v2026.json'
                     };
-
-                    if (!config.user || config.user === '你的坚果云账号') {
-                        alert("请先在代码中配置您的坚果云账号和应用密码！");
-                        return;
-                    }
-
+                    if (!config.user || config.user.includes('你的')) return alert("请在代码中配置坚果云账号");
+                    
                     const auth = btoa(`${config.user}:${config.pass}`);
                     const targetUrl = `${config.proxy}${config.davUrl}${config.fileName}`;
 
@@ -258,51 +232,38 @@
                         if (mode === 'PUT') {
                             const res = await fetch(targetUrl, {
                                 method: 'PUT',
-                                headers: {
-                                    'Authorization': `Basic ${auth}`,
-                                    'Content-Type': 'application/json',
-                                    'X-Requested-With': 'XMLHttpRequest'
-                                },
+                                headers: { 'Authorization': `Basic ${auth}`, 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
                                 body: JSON.stringify(diaries.value)
                             });
                             if (res.ok) alert("✅ 云端备份成功！");
-                            else if (res.status === 403) alert("❌ 代理授权：请访问代理官网点击确认按钮。");
-                            else throw new Error("同步失败");
+                            else if (res.status === 403) alert("❌ 需授权代理：请访问代理官网点确认");
                         } else {
                             const res = await fetch(targetUrl, {
                                 method: 'GET',
-                                headers: {
-                                    'Authorization': `Basic ${auth}`,
-                                    'X-Requested-With': 'XMLHttpRequest'
-                                }
+                                headers: { 'Authorization': `Basic ${auth}`, 'X-Requested-With': 'XMLHttpRequest' }
                             });
                             if (res.ok) {
                                 const data = await res.json();
-                                if (confirm(`发现云端记录 ${data.length} 条，是否覆盖本地？`)) {
+                                if (confirm(`找到 ${data.length} 条记录，覆盖本地？`)) {
                                     diaries.value = data.map(d => ({...d, isExpanded: false, isCalExpanded: false}));
-                                    saveToLocal();
-                                    alert("✅ 同步成功！");
+                                    saveToLocal(); alert("✅ 同步成功！");
                                 }
-                            } else {
-                                alert("❌ 未找到云端备份或同步出错");
-                            }
+                            } else alert("❌ 未找到备份");
                         }
-                    } catch (err) {
-                        alert("连接失败：请确保网络通畅或已激活跨域代理权限。");
-                    }
+                    } catch (e) { alert("连接失败，请检查配置或代理"); }
                 };
 
                 return { 
                     currentTab, subTab, showModal, diaries, newContent, previewImg, customDate, isSearching, searchQuery, historyDate, calYear, calMonth, selectedDate, moods, weathers, selMood, selWeather, filteredDiaries,
                     daysInCalMonth: computed(() => new Date(calYear.value, calMonth.value + 1, 0).getDate()),
                     firstDayPad: computed(() => new Date(calYear.value, calMonth.value, 1).getDay()),
-                    hasDiaryOn: (d) => { const ds = `${calYear.value}-${String(calMonth.value + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`; return diaries.value.some(x => x.date === ds); },
-                    selectedDayDiaries: computed(() => { const ds = `${calYear.value}-${String(calMonth.value + 1).padStart(2, '0')}-${String(selectedDate.value).padStart(2, '0')}`; return diaries.value.filter(x => x.date === ds).sort((a,b) => b.ts - a.ts); }),
+                    hasDiaryOn: (d) => diaries.value.some(x => x.date === `${calYear.value}-${String(calMonth.value + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`),
+                    selectedDayDiaries: computed(() => diaries.value.filter(x => x.date === `${calYear.value}-${String(calMonth.value + 1).padStart(2, '0')}-${String(selectedDate.value).padStart(2, '0')}`).sort((a,b) => b.ts - a.ts)),
                     changeMonth: (v) => { let d = new Date(calYear.value, calMonth.value + v, 1); calYear.value = d.getFullYear(); calMonth.value = d.getMonth(); selectedDate.value = 1; },
                     resetToToday: () => { const n = new Date(); calYear.value = n.getFullYear(); calMonth.value = n.getMonth(); selectedDate.value = n.getDate(); },
                     totalWords: computed(() => diaries.value.reduce((a, d) => a + (d.content?.length || 0), 0)),
-                    activityHeat: computed(() => { const res = []; const now = new Date(); for (let i = 83; i >= 0; i--) { const d = new Date(); d.setDate(now.getDate() - i); const ds = d.toISOString().split('T')[0]; res.push({ id: i, count: diaries.value.filter(x => x.date === ds).length }); } return res; }),
-                    exportData: () => { const b = new Blob([JSON.stringify(diaries.value)], { type: "application/json" }); const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = `大忘备份.json`; a.click(); },
+                    activityHeat: computed(() => { const res = []; const now = new Date(); for (let i = 83; i >= 0; i--) { const d = new Date(); d.setDate(now.getDate() - i); res.push({ id: i, count: diaries.value.filter(x => x.date === d.toISOString().split('T')[0]).length }); } return res; }),
+                    exportData: () => { const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([JSON.stringify(diaries.value)], { type: "application/json" })); a.download = `大忘备份.json`; a.click(); },
                     importData: (e) => { const r = new FileReader(); r.onload = (ev) => { diaries.value = JSON.parse(ev.target.result).map(d => ({...d, isExpanded: false, isCalExpanded: false})); saveToLocal(); alert("导入成功"); }; r.readAsText(e.target.files[0]); },
                     syncCloud,
                     getDayName: (d) => ['日','一','二','三','四','五','六'][new Date(d).getDay()],
@@ -311,7 +272,7 @@
                     openNewModal: () => { editingTs.value = null; newContent.value = ''; previewImg.value = ''; selMood.value = ''; selWeather.value = ''; customDate.value = new Date().toISOString().split('T')[0]; showModal.value = true; },
                     editDiary: (i) => { editingTs.value = i.ts; newContent.value = i.content; previewImg.value = i.img || ''; customDate.value = i.date; selMood.value = i.mood || ''; selWeather.value = i.weather || ''; showModal.value = true; },
                     deleteDiary: (ts) => { if (confirm("确定删除？")) { diaries.value = diaries.value.filter(x => x.ts !== ts); saveToLocal(); } },
-                    saveDiary
+                    saveDiary: () => { if (!newContent.value && !previewImg.value) return; const d = { content: newContent.value, img: previewImg.value, date: customDate.value, mood: selMood.value, weather: selWeather.value, ts: editingTs.value || Date.now() }; if (editingTs.value) { const i = diaries.value.findIndex(x => x.ts === editingTs.value); diaries.value[i] = d; } else diaries.value.unshift(d); saveToLocal(); showModal.value = false; }
                 };
             }
         }).mount('#app')
