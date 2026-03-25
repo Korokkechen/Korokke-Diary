@@ -10,7 +10,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        [v-cloak] { display: none; }
+        [v-cloak] { display: none !important; }
         body { background-color: #f8f8f8; font-family: -apple-system, sans-serif; -webkit-tap-highlight-color: transparent; padding-top: env(safe-area-inset-top); }
         .sub-nav-active { color: #000; font-weight: 800; border-bottom: 2px solid #000; }
         .sub-nav-item { padding: 8px 0; margin: 0 15px; font-size: 14px; color: #aaa; cursor: pointer; }
@@ -21,7 +21,9 @@
         .heat-map-container { display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; }
         .heat-cell { width: 10px; height: 10px; border-radius: 2px; background: #eee; }
         .heat-cell-active { background: #000 !important; }
-        .btn-card { background: white; border-radius: 28px; padding: 1.25rem; display: flex; flex-direction: column; align-items: flex-start; border: 1px solid #f1f1f1; width: 100%; text-align: left; cursor: pointer; }
+        .btn-card { background: white; border-radius: 28px; padding: 1.25rem; display: flex; flex-direction: column; align-items: flex-start; border: 1px solid #f1f1f1; width: 100%; text-align: left; cursor: pointer; position: relative; z-index: 50; }
+        /* 核心修复：防止 Safari 点击失效 */
+        .btn-card * { pointer-events: none; } 
         .meta-btn { width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; border-radius: 12px; background: #f3f4f6; color: #9ca3af; transition: all 0.2s; }
         .meta-btn.active { background: #000; color: #fff; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
@@ -70,7 +72,7 @@
                     </div>
                     <div v-if="subTab === 1">
                         <p :class="['text-[15px] text-gray-800 leading-relaxed whitespace-pre-wrap', !item.isExpanded ? 'line-clamp-2' : '']">{{ item.content }}</p>
-                        <button @click="item.isExpanded = !item.isExpanded" class="mt-3 text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-black">{{ item.isExpanded ? '收起详情' : '展开全文' }}</button>
+                        <button @click="item.isExpanded = !item.isExpanded" class="mt-3 text-[10px] font-black uppercase tracking-widest text-gray-400">{{ item.isExpanded ? '收起详情' : '展开全文' }}</button>
                     </div>
                     <p v-else class="text-[15px] text-gray-800 leading-relaxed mb-4 whitespace-pre-wrap">{{ item.content }}</p>
                     <img v-if="item.img && (subTab === 0 || item.isExpanded)" :src="item.img" class="w-full rounded-[24px] object-cover max-h-80 mt-2 shadow-sm">
@@ -119,11 +121,11 @@
                     </div>
                 </div>
                 <div class="grid grid-cols-2 gap-4">
-                    <button @click="exportData" class="btn-card"><span class="text-[9px] font-bold text-gray-300 uppercase mb-1">Backup</span><h4 class="font-black text-sm">导出备份</h4></button>
-                    <button @click="$refs.fileInput.click()" class="btn-card"><span class="text-[9px] font-bold text-gray-300 uppercase mb-1">Restore</span><h4 class="font-black text-sm">导入恢复</h4></button>
+                    <div @click="exportData" class="btn-card"><span class="text-[9px] font-bold text-gray-300 uppercase mb-1">Backup</span><h4 class="font-black text-sm">导出备份</h4></div>
+                    <div @click="$refs.fileInput.click()" class="btn-card"><span class="text-[9px] font-bold text-gray-300 uppercase mb-1">Restore</span><h4 class="font-black text-sm">导入恢复</h4></div>
                     <input type="file" ref="fileInput" class="hidden" @change="importData">
-                    <button @click="handleSync('PUT')" class="btn-card relative z-10"><span class="text-[9px] font-bold text-gray-300 uppercase mb-1">Cloud</span><h4 class="font-black text-sm">云端备份</h4></button>
-                    <button @click="handleSync('GET')" class="btn-card relative z-10"><span class="text-[9px] font-bold text-gray-300 uppercase mb-1">Sync</span><h4 class="font-black text-sm">云端恢复</h4></button>
+                    <div @click="handleSync('PUT')" class="btn-card"><span class="text-[9px] font-bold text-gray-300 uppercase mb-1">Cloud</span><h4 class="font-black text-sm">云端备份</h4></div>
+                    <div @click="handleSync('GET')" class="btn-card"><span class="text-[9px] font-bold text-gray-300 uppercase mb-1">Sync</span><h4 class="font-black text-sm">云端恢复</h4></div>
                 </div>
             </section>
         </main>
@@ -174,7 +176,7 @@
                         if (mode === 'PUT') {
                             const res = await fetch(url, { method: 'PUT', headers: { 'Authorization': `Basic ${auth}`, 'Content-Type': 'application/json' }, body: JSON.stringify(diaries.value) });
                             if (res.ok) alert("✅ 云端备份成功！");
-                            else alert("❌ 备份失败，请检查账号配置");
+                            else alert("❌ 备份失败，可能需要访问代理官网点确认");
                         } else {
                             const res = await fetch(url, { method: 'GET', headers: { 'Authorization': `Basic ${auth}` } });
                             if (res.ok) {
@@ -182,7 +184,7 @@
                                 if (confirm(`找到 ${data.length} 条记录，覆盖本地？`)) { diaries.value = data; saveToLocal(); alert("✅ 同步成功！"); }
                             } else alert("❌ 未找到备份");
                         }
-                    } catch (e) { alert("网络连接失败"); }
+                    } catch (e) { alert("网络错误，请检查配置或代理状态"); }
                 };
 
                 return {
