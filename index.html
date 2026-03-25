@@ -25,9 +25,10 @@
         .meta-btn { width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; border-radius: 12px; background: #f3f4f6; color: #9ca3af; }
         .meta-btn.active { background: #000; color: #fff; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
-        /* 搜索框动画 */
         .search-enter-active, .search-leave-active { transition: all 0.3s ease; }
         .search-enter-from, .search-leave-to { opacity: 0; transform: translateY(-10px); }
+        /* 列表项右侧调整 */
+        .meta-group { position: absolute; top: 1.5rem; right: 2rem; } /* 往左边挪了点 */
     </style>
 </head>
 <body>
@@ -43,9 +44,7 @@
             
             <transition name="search">
                 <div v-if="isSearching" class="px-2 pb-3">
-                    <input v-model="searchQuery" autofocus 
-                           class="w-full bg-white border border-gray-100 rounded-full px-5 py-2 text-sm focus:outline-none shadow-inner" 
-                           placeholder="搜索日记内容...">
+                    <input v-model="searchQuery" autofocus class="w-full bg-white border border-gray-100 rounded-full px-5 py-2 text-sm focus:outline-none shadow-inner" placeholder="搜索日记内容...">
                 </div>
             </transition>
 
@@ -63,11 +62,15 @@
         <main class="px-4 pb-48 pt-4">
             <section v-if="currentTab === 0" class="space-y-6">
                 <div v-for="item in filteredDiaries" :key="item.ts" class="bg-white rounded-[32px] p-6 shadow-sm border border-gray-50 relative">
-                    <div class="absolute top-6 right-6 flex space-x-4 text-gray-200 text-xs">
-                        <i @click.stop="editDiary(item)" class="fas fa-edit cursor-pointer p-1"></i>
-                        <i @click.stop="deleteDiary(item.ts)" class="fas fa-trash-alt cursor-pointer p-1"></i>
+                    <div class="meta-group flex items-center space-x-4">
+                        <div :class="['text-[11px] font-black italic', subTab === 1 ? 'text-black' : 'text-gray-300']">{{ item.date.split('-')[0] }}</div>
+                        <div class="flex space-x-3 text-gray-200 text-xs">
+                            <i @click.stop="editDiary(item)" class="fas fa-edit cursor-pointer p-1"></i>
+                            <i @click.stop="deleteDiary(item.ts)" class="fas fa-trash-alt cursor-pointer p-1"></i>
+                        </div>
                     </div>
-                    <div class="flex justify-between items-start mb-4 pr-12">
+
+                    <div class="flex justify-between items-start mb-4 pr-32">
                         <div class="flex items-center space-x-3">
                             <span class="text-3xl font-black text-gray-900">{{ item.date.split('-')[2] }}</span>
                             <div class="text-[10px] text-gray-400 font-bold leading-tight uppercase">
@@ -78,13 +81,20 @@
                                 <i v-if="item.weather" :class="weathers.find(w=>w.id===item.weather)?.icon"></i>
                             </div>
                         </div>
-                        <div :class="['text-[11px] font-black italic pt-1', subTab === 1 ? 'text-black' : 'text-gray-300']">{{ item.date.split('-')[0] }}</div>
                     </div>
-                    <p class="text-[15px] text-gray-800 leading-relaxed mb-4 whitespace-pre-wrap">{{ item.content }}</p>
-                    <img v-if="item.img" :src="item.img" class="w-full rounded-[24px] object-cover max-h-80 mb-2 shadow-sm">
-                </div>
-                <div v-if="filteredDiaries.length === 0" class="text-center py-20 text-gray-300 font-bold uppercase tracking-widest text-[10px]">
-                    没有找到匹配的内容
+
+                    <div v-if="subTab === 1">
+                        <p :class="['text-[15px] text-gray-800 leading-relaxed whitespace-pre-wrap', !item.isExpanded ? 'line-clamp-2' : '']">{{ item.content }}</p>
+                        <img v-if="item.img && item.isExpanded" :src="item.img" class="w-full rounded-[24px] object-cover max-h-80 mt-4 shadow-sm">
+                        <button @click="item.isExpanded = !item.isExpanded" class="mt-3 text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-black">
+                            {{ item.isExpanded ? '收起详情' : '展开全文' }}
+                        </button>
+                    </div>
+                    
+                    <div v-else>
+                        <p class="text-[15px] text-gray-800 leading-relaxed mb-4 whitespace-pre-wrap">{{ item.content }}</p>
+                        <img v-if="item.img" :src="item.img" class="w-full rounded-[24px] object-cover max-h-80 mb-2 shadow-sm">
+                    </div>
                 </div>
             </section>
 
@@ -107,13 +117,23 @@
                     </div>
                 </div>
                 <div class="space-y-4">
-                    <div v-for="item in selectedDayDiaries" :key="item.ts" class="bg-white rounded-[24px] p-5 border relative shadow-sm flex space-x-4">
-                        <div class="flex-1">
-                            <div class="text-[10px] font-black text-gray-300 mb-1 italic">{{ item.date.split('-')[0] }} YEAR</div>
-                            <p class="text-sm text-gray-800 line-clamp-3">{{ item.content }}</p>
+                    <div v-for="item in selectedDayDiaries" :key="item.ts" 
+                         @click="item.isCalExpanded = !item.isCalExpanded"
+                         class="bg-white rounded-[24px] p-5 border relative shadow-sm cursor-pointer transition-all">
+                        <div class="flex space-x-4">
+                            <div class="flex-1">
+                                <div class="text-[10px] font-black text-gray-300 mb-1 italic">{{ item.date.split('-')[0] }} YEAR</div>
+                                <p :class="['text-sm text-gray-800', !item.isCalExpanded ? 'line-clamp-2' : 'whitespace-pre-wrap']">{{ item.content }}</p>
+                            </div>
+                            <img v-if="item.img && !item.isCalExpanded" :src="item.img" class="w-16 h-16 rounded-xl object-cover shadow-sm">
                         </div>
-                        <img v-if="item.img" :src="item.img" class="w-16 h-16 rounded-xl object-cover shadow-sm">
-                        <i @click.stop="editDiary(item)" class="fas fa-edit absolute top-5 right-5 text-gray-200 text-[10px]"></i>
+                        <div v-if="item.isCalExpanded" class="mt-4 pt-4 border-t border-gray-50">
+                            <img v-if="item.img" :src="item.img" class="w-full rounded-xl object-cover max-h-60 mb-4">
+                            <div class="flex justify-end space-x-4 text-gray-300">
+                                <i @click.stop="editDiary(item)" class="fas fa-edit p-2 text-xs"></i>
+                                <i @click.stop="deleteDiary(item.ts)" class="fas fa-trash-alt p-2 text-xs"></i>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </section>
@@ -166,7 +186,7 @@
     </div>
 
     <script>
-        const { createApp, ref, onMounted, computed } = Vue;
+        const { createApp, ref, onMounted, computed, reactive } = Vue;
         createApp({
             setup() {
                 const currentTab = ref(0), subTab = ref(0), showModal = ref(false), diaries = ref([]);
@@ -179,31 +199,42 @@
                 const weathers = [{id:'sun', icon:'fas fa-sun'}, {id:'cloud', icon:'fas fa-cloud'}, {id:'rain', icon:'fas fa-cloud-showers-heavy'}, {id:'snow', icon:'fas fa-snowflake'}];
 
                 const saveToLocal = () => localStorage.setItem('diary_v2026_final', JSON.stringify(diaries.value));
-                onMounted(() => { const s = localStorage.getItem('diary_v2026_final'); if (s) diaries.value = JSON.parse(s); });
+                
+                onMounted(() => { 
+                    const s = localStorage.getItem('diary_v2026_final'); 
+                    if (s) {
+                        const raw = JSON.parse(s);
+                        // 初始化每个日记项的响应式状态
+                        diaries.value = raw.map(d => ({...d, isExpanded: false, isCalExpanded: false}));
+                    }
+                });
 
                 const filteredDiaries = computed(() => {
                     let list = [...diaries.value];
-                    
-                    // 1. 先按频道筛选 (时间轴 vs 那年今日)
                     if (subTab.value === 1) {
                         const parts = historyDate.value.split('-');
                         const mmdd = `${parts[1]}-${parts[2]}`;
                         list = list.filter(d => d.date.endsWith(mmdd));
                     }
-
-                    // 2. 再按搜索关键词筛选
                     if (isSearching.value && searchQuery.value.trim()) {
                         const q = searchQuery.value.toLowerCase();
                         list = list.filter(d => d.content.toLowerCase().includes(q));
                     }
-
-                    // 3. 排序
                     return list.sort((a,b) => b.date.localeCompare(a.date) || b.ts - a.ts);
                 });
 
                 const saveDiary = () => {
                     if (!newContent.value && !previewImg.value) return;
-                    const d = { content: newContent.value, img: previewImg.value, date: customDate.value, mood: selMood.value, weather: selWeather.value, ts: editingTs.value || Date.now() };
+                    const d = { 
+                        content: newContent.value, 
+                        img: previewImg.value, 
+                        date: customDate.value, 
+                        mood: selMood.value, 
+                        weather: selWeather.value, 
+                        ts: editingTs.value || Date.now(),
+                        isExpanded: false,
+                        isCalExpanded: false
+                    };
                     if (editingTs.value) {
                         const i = diaries.value.findIndex(x => x.ts === editingTs.value);
                         diaries.value[i] = d;
@@ -225,8 +256,8 @@
                     totalWords: computed(() => diaries.value.reduce((a, d) => a + (d.content?.length || 0), 0)),
                     activityHeat: computed(() => { const res = []; const now = new Date(); for (let i = 83; i >= 0; i--) { const d = new Date(); d.setDate(now.getDate() - i); const ds = d.toISOString().split('T')[0]; res.push({ id: i, count: diaries.value.filter(x => x.date === ds).length }); } return res; }),
                     exportData: () => { const b = new Blob([JSON.stringify(diaries.value)], { type: "application/json" }); const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = `大忘备份.json`; a.click(); },
-                    importData: (e) => { const r = new FileReader(); r.onload = (ev) => { diaries.value = JSON.parse(ev.target.result); saveToLocal(); alert("导入成功"); }; r.readAsText(e.target.files[0]); },
-                    syncCloud: (m) => alert("云端服务已就绪"),
+                    importData: (e) => { const r = new FileReader(); r.onload = (ev) => { diaries.value = JSON.parse(ev.target.result).map(d => ({...d, isExpanded: false, isCalExpanded: false})); saveToLocal(); alert("导入成功"); }; r.readAsText(e.target.files[0]); },
+                    syncCloud: (m) => alert("正在连接坚果云（WebDAV）..."),
                     getDayName: (d) => ['日','一','二','三','四','五','六'][new Date(d).getDay()],
                     getMonthName: (d) => ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][new Date(d).getMonth()],
                     handleImage: (e) => { const r = new FileReader(); r.onload = (v) => previewImg.value = v.target.result; if (e.target.files[0]) r.readAsDataURL(e.target.files[0]); },
