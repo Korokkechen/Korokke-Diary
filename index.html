@@ -21,7 +21,7 @@
         .heat-map-container { display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; }
         .heat-cell { width: 10px; height: 10px; border-radius: 2px; background: #eee; }
         .heat-cell-active { background: #000 !important; }
-        .btn-card { background: white; border-radius: 28px; padding: 1.25rem; display: flex; flex-direction: column; align-items: flex-start; border: 1px solid #f1f1f1; }
+        .btn-card { background: white; border-radius: 28px; padding: 1.25rem; display: flex; flex-direction: column; align-items: flex-start; border: 1px solid #f1f1f1; width: 100%; text-align: left; }
         .meta-btn { width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; border-radius: 12px; background: #f3f4f6; color: #9ca3af; transition: all 0.2s; }
         .meta-btn.active { background: #000; color: #fff; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
@@ -151,8 +151,8 @@
                     <button @click="exportData" class="btn-card"><span class="text-[9px] font-bold text-gray-300 uppercase mb-1">Backup</span><h4 class="font-black text-sm">导出备份</h4></button>
                     <button @click="$refs.fileInput.click()" class="btn-card"><span class="text-[9px] font-bold text-gray-300 uppercase mb-1">Restore</span><h4 class="font-black text-sm">导入恢复</h4></button>
                     <input type="file" ref="fileInput" class="hidden" @change="importData">
-                    <button @click="syncCloud('PUT')" class="btn-card"><span class="text-[9px] font-bold text-gray-300 uppercase mb-1">Cloud</span><h4 class="font-black text-sm">云端备份</h4></button>
-                    <button @click="syncCloud('GET')" class="btn-card"><span class="text-[9px] font-bold text-gray-300 uppercase mb-1">Sync</span><h4 class="font-black text-sm">云端恢复</h4></button>
+                    <button @click="handleCloudSync('PUT')" class="btn-card"><span class="text-[9px] font-bold text-gray-300 uppercase mb-1">Cloud</span><h4 class="font-black text-sm">云端备份</h4></button>
+                    <button @click="handleCloudSync('GET')" class="btn-card"><span class="text-[9px] font-bold text-gray-300 uppercase mb-1">Sync</span><h4 class="font-black text-sm">云端恢复</h4></button>
                 </div>
             </section>
         </main>
@@ -191,12 +191,7 @@
                 const historyDate = ref(new Date().toISOString().split('T')[0]);
                 const calYear = ref(new Date().getFullYear()), calMonth = ref(new Date().getMonth()), selectedDate = ref(new Date().getDate());
 
-                const moods = [
-                    {id:'calm', icon:'fas fa-meh'}, 
-                    {id:'happy', icon:'fas fa-smile'}, 
-                    {id:'sad', icon:'fas fa-frown'}, 
-                    {id:'bliss', icon:'fas fa-laugh-beam'}
-                ];
+                const moods = [{id:'calm', icon:'fas fa-meh'}, {id:'happy', icon:'fas fa-smile'}, {id:'sad', icon:'fas fa-frown'}, {id:'bliss', icon:'fas fa-laugh-beam'}];
                 const weathers = [{id:'sun', icon:'fas fa-sun'}, {id:'cloud', icon:'fas fa-cloud'}, {id:'rain', icon:'fas fa-cloud-showers-heavy'}, {id:'snow', icon:'fas fa-snowflake'}];
 
                 const saveToLocal = () => localStorage.setItem('diary_v2026_final', JSON.stringify(diaries.value));
@@ -215,7 +210,8 @@
                     return list.sort((a,b) => b.date.localeCompare(a.date) || b.ts - a.ts);
                 });
 
-                const syncCloud = async (mode) => {
+                // 核心同步函数：handleCloudSync
+                const handleCloudSync = async (mode) => {
                     const config = {
                         proxy: 'https://cors-anywhere.herokuapp.com/', 
                         davUrl: 'https://dav.jianguoyun.com/dav/',
@@ -223,7 +219,7 @@
                         pass: 'adar6c3rbakgn85b', 
                         fileName: 'dawang_diary_v2026.json'
                     };
-                    if (!config.user || config.user.includes('你的')) return alert("请在代码中配置坚果云账号");
+                    if (!config.user || config.user.includes('你的')) { alert("请在代码中配置坚果云账号"); return; }
                     
                     const auth = btoa(`${config.user}:${config.pass}`);
                     const targetUrl = `${config.proxy}${config.davUrl}${config.fileName}`;
@@ -254,6 +250,7 @@
                 };
 
                 return { 
+                    handleCloudSync, // 显式放在最顶端
                     currentTab, subTab, showModal, diaries, newContent, previewImg, customDate, isSearching, searchQuery, historyDate, calYear, calMonth, selectedDate, moods, weathers, selMood, selWeather, filteredDiaries,
                     daysInCalMonth: computed(() => new Date(calYear.value, calMonth.value + 1, 0).getDate()),
                     firstDayPad: computed(() => new Date(calYear.value, calMonth.value, 1).getDay()),
@@ -265,7 +262,6 @@
                     activityHeat: computed(() => { const res = []; const now = new Date(); for (let i = 83; i >= 0; i--) { const d = new Date(); d.setDate(now.getDate() - i); res.push({ id: i, count: diaries.value.filter(x => x.date === d.toISOString().split('T')[0]).length }); } return res; }),
                     exportData: () => { const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([JSON.stringify(diaries.value)], { type: "application/json" })); a.download = `大忘备份.json`; a.click(); },
                     importData: (e) => { const r = new FileReader(); r.onload = (ev) => { diaries.value = JSON.parse(ev.target.result).map(d => ({...d, isExpanded: false, isCalExpanded: false})); saveToLocal(); alert("导入成功"); }; r.readAsText(e.target.files[0]); },
-                    syncCloud,
                     getDayName: (d) => ['日','一','二','三','四','五','六'][new Date(d).getDay()],
                     getMonthName: (d) => ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][new Date(d).getMonth()],
                     handleImage: (e) => { const r = new FileReader(); r.onload = (v) => previewImg.value = v.target.result; if (e.target.files[0]) r.readAsDataURL(e.target.files[0]); },
