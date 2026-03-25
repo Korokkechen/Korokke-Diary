@@ -49,7 +49,9 @@
 
         <main class="px-4 pb-48 pt-4">
             <section v-if="currentTab === 0" class="space-y-6">
-                <div v-for="item in filteredDiaries" :key="item.ts" class="bg-white rounded-[32px] p-6 shadow-sm border border-gray-50 relative">
+                <div v-for="item in filteredDiaries" :key="item.ts" 
+                     @click="subTab === 1 ? (item.isTimelineExpanded = !item.isTimelineExpanded) : null"
+                     class="bg-white rounded-[32px] p-6 shadow-sm border border-gray-50 relative">
                     <div class="absolute top-6 right-6 flex items-center space-x-3">
                         <div class="flex items-center space-x-2 mr-1">
                             <span class="text-[11px] font-black italic text-gray-200">{{ item.date.split('-')[0] }}</span>
@@ -66,8 +68,13 @@
                         <span class="text-3xl font-black text-gray-900">{{ item.date.split('-')[2] }}</span>
                         <div class="text-[10px] text-gray-400 font-bold leading-tight uppercase">{{ getMonthName(item.date) }}<br>周{{ getDayName(item.date) }}</div>
                     </div>
-                    <p class="text-[15px] text-gray-800 leading-relaxed whitespace-pre-wrap">{{ item.content }}</p>
-                    <img v-if="item.img" :src="item.img" class="w-full rounded-[24px] object-cover max-h-80 mt-4 shadow-sm">
+                    
+                    <p :class="['text-[15px] text-gray-800 leading-relaxed transition-all', (subTab === 1 && !item.isTimelineExpanded) ? 'line-clamp-2' : 'whitespace-pre-wrap']">{{ item.content }}</p>
+                    
+                    <div v-if="item.img">
+                        <img v-if="subTab === 0 || item.isTimelineExpanded" :src="item.img" class="w-full rounded-[24px] object-cover max-h-80 mt-4 shadow-sm">
+                        <div v-else class="mt-2 flex items-center text-gray-200 text-[9px] font-bold"><i class="far fa-image mr-1"></i>查看图片附件</div>
+                    </div>
                 </div>
             </section>
 
@@ -158,14 +165,16 @@
                 const saveToLocal = () => localStorage.setItem('diary_v2026_final', JSON.stringify(diaries.value));
                 onMounted(() => { 
                     const s = localStorage.getItem('diary_v2026_final'); 
-                    if (s) diaries.value = JSON.parse(s); 
+                    if (s) {
+                        const parsed = JSON.parse(s);
+                        diaries.value = parsed.map(d => ({ ...d, isTimelineExpanded: false }));
+                    }
                 });
 
                 const handleSync = async (mode) => {
                     const user = 'evelyn_1124@live.com'; 
                     const pass = 'aqvqs8qmcnds9x3m'; 
                     const proxy = 'https://cors-anywhere.herokuapp.com/';
-                    // 修正备份路径
                     const fullUrl = `${proxy}https://dav.jianguoyun.com/dav/diary/dawang_diary_v2026.json`;
                     const auth = btoa(user + ':' + pass);
                     try {
@@ -178,10 +187,14 @@
                             const res = await fetch(fullUrl, { method: 'GET', headers });
                             if (res.ok) {
                                 const data = await res.json();
-                                if (confirm(`找到 ${data.length} 条记录，覆盖本地？`)) { diaries.value = data; saveToLocal(); alert("✅ 同步成功！"); }
+                                if (confirm(`找到 ${data.length} 条记录，覆盖本地？`)) { 
+                                    diaries.value = data.map(d => ({ ...d, isTimelineExpanded: false })); 
+                                    saveToLocal(); 
+                                    alert("✅ 同步成功！"); 
+                                }
                             }
                         }
-                    } catch (err) { alert(`❌ 云端访问失败，请检查账号密码或代理服务`); }
+                    } catch (err) { alert(`❌ 云端访问失败`); }
                 };
 
                 return {
@@ -208,14 +221,14 @@
                         return res;
                     }),
                     exportData: () => { const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([JSON.stringify(diaries.value)], { type: "application/json" })); a.download = `大忘日记_备份.json`; a.click(); },
-                    importData: (e) => { const r = new FileReader(); r.onload = (ev) => { try { diaries.value = JSON.parse(ev.target.result); saveToLocal(); alert("导入成功"); } catch(e) { alert("格式错误"); } }; r.readAsText(e.target.files[0]); },
+                    importData: (e) => { const r = new FileReader(); r.onload = (ev) => { try { diaries.value = JSON.parse(ev.target.result).map(d => ({ ...d, isTimelineExpanded: false })); saveToLocal(); alert("导入成功"); } catch(e) { alert("格式错误"); } }; r.readAsText(e.target.files[0]); },
                     getDayName: (d) => ['日','一','二','三','四','五','六'][new Date(d).getDay()],
                     getMonthName: (d) => ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][new Date(d).getMonth()],
                     handleImage: (e) => { const r = new FileReader(); r.onload = (v) => previewImg.value = v.target.result; if (e.target.files[0]) r.readAsDataURL(e.target.files[0]); },
                     openNewModal: () => { editingTs.value = null; newContent.value = ''; previewImg.value = ''; newMood.value = '😊'; newWeather.value = '晴'; customDate.value = new Date().toISOString().split('T')[0]; showModal.value = true; },
                     editDiary: (i) => { editingTs.value = i.ts; newContent.value = i.content; previewImg.value = i.img || ''; newMood.value = i.mood || '😊'; newWeather.value = i.weather || '晴'; customDate.value = i.date; showModal.value = true; },
                     deleteDiary: (ts) => { if (confirm("确定删除？")) { diaries.value = diaries.value.filter(x => x.ts !== ts); saveToLocal(); } },
-                    saveDiary: () => { if (!newContent.value && !previewImg.value) return; const d = { content: newContent.value, img: previewImg.value, date: customDate.value, ts: editingTs.value || Date.now(), isCalExpanded: false, mood: newMood.value, weather: newWeather.value }; if (editingTs.value) { const i = diaries.value.findIndex(x => x.ts === editingTs.value); diaries.value[i] = d; } else diaries.value.unshift(d); saveToLocal(); showModal.value = false; }
+                    saveDiary: () => { if (!newContent.value && !previewImg.value) return; const d = { content: newContent.value, img: previewImg.value, date: customDate.value, ts: editingTs.value || Date.now(), isCalExpanded: false, isTimelineExpanded: false, mood: newMood.value, weather: newWeather.value }; if (editingTs.value) { const i = diaries.value.findIndex(x => x.ts === editingTs.value); diaries.value[i] = d; } else diaries.value.unshift(d); saveToLocal(); showModal.value = false; }
                 };
             }
         }).mount('#app')
