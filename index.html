@@ -25,7 +25,6 @@
         .mood-btn { font-size: 24px; filter: grayscale(1); opacity: 0.3; transition: 0.3s; cursor: pointer; }
         .mood-active { filter: grayscale(0); opacity: 1; transform: scale(1.2); }
         .line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-        /* 新增右侧缩略图样式 */
         .side-thumb { width: 50px; height: 50px; border-radius: 12px; object-fit: cover; flex-shrink: 0; margin-left: 12px; border: 1px solid #f1f1f1; }
     </style>
 </head>
@@ -70,12 +69,10 @@
                         <span class="text-3xl font-black text-gray-900">{{ item.date.split('-')[2] }}</span>
                         <div class="text-[10px] text-gray-400 font-bold leading-tight uppercase">{{ getMonthName(item.date) }}<br>周{{ getDayName(item.date) }}</div>
                     </div>
-                    
                     <div class="flex items-start">
                         <p :class="['text-[15px] text-gray-800 leading-relaxed transition-all flex-1', (subTab === 1 && !item.isTimelineExpanded) ? 'line-clamp-2' : 'whitespace-pre-wrap']">{{ item.content }}</p>
                         <img v-if="subTab === 1 && !item.isTimelineExpanded && item.img" :src="item.img" class="side-thumb">
                     </div>
-                    
                     <img v-if="(subTab === 0 || item.isTimelineExpanded) && item.img" :src="item.img" class="w-full rounded-[24px] object-cover max-h-80 mt-4 shadow-sm">
                 </div>
             </section>
@@ -150,7 +147,10 @@
             <textarea v-model="newContent" class="w-full flex-1 text-xl focus:outline-none resize-none" placeholder="写点什么..."></textarea>
             <div class="py-6 border-t flex items-center space-x-4">
                 <label class="text-gray-300 p-2 cursor-pointer"><i class="far fa-image text-2xl"></i><input type="file" class="hidden" accept="image/*" @change="handleImage"></label>
-                <div v-if="previewImg" class="relative w-16 h-16 rounded-xl overflow-hidden shadow-md"><img :src="previewImg" class="w-full h-full object-cover"></div>
+                <div v-if="previewImg" class="relative w-16 h-16 rounded-xl overflow-hidden shadow-md">
+                    <img :src="previewImg" class="w-full h-full object-cover">
+                    <div @click="previewImg = ''" class="absolute top-0 right-0 bg-black/50 text-white w-5 h-5 flex items-center justify-center text-[10px]"><i class="fas fa-times"></i></div>
+                </div>
             </div>
         </div>
     </div>
@@ -166,13 +166,17 @@
                 const historyDate = ref(new Date().toISOString().split('T')[0]);
                 const calYear = ref(2026), calMonth = ref(new Date().getMonth()), selectedDate = ref(new Date().getDate());
 
-                const saveToLocal = () => localStorage.setItem('diary_v2026_final', JSON.stringify(diaries.value));
+                const saveToLocal = () => {
+                    try {
+                        localStorage.setItem('diary_v2026_final', JSON.stringify(diaries.value));
+                    } catch (e) {
+                        alert("⚠️ 存储失败！可能是图片太多或太大，请尝试清理日记或减少图片量。");
+                    }
+                };
+                
                 onMounted(() => { 
                     const s = localStorage.getItem('diary_v2026_final'); 
-                    if (s) {
-                        const parsed = JSON.parse(s);
-                        diaries.value = parsed.map(d => ({ ...d, isTimelineExpanded: false }));
-                    }
+                    if (s) diaries.value = JSON.parse(s).map(d => ({ ...d, isTimelineExpanded: d.isTimelineExpanded || false }));
                 });
 
                 const handleSync = async (mode) => {
@@ -193,16 +197,42 @@
                                 const data = await res.json();
                                 if (confirm(`找到 ${data.length} 条记录，覆盖本地？`)) { 
                                     diaries.value = data.map(d => ({ ...d, isTimelineExpanded: false })); 
-                                    saveToLocal(); 
-                                    alert("✅ 同步成功！"); 
+                                    saveToLocal(); alert("✅ 同步成功！"); 
                                 }
                             }
                         }
                     } catch (err) { alert(`❌ 云端访问失败`); }
                 };
 
+                // 图片压缩逻辑：核心解决“只能发两篇”的问题
+                const compressImage = (base64Str) => {
+                    return new Promise((resolve) => {
+                        const img = new Image();
+                        img.src = base64Str;
+                        img.onload = () => {
+                            const canvas = document.createElement('canvas');
+                            let width = img.width;
+                            let height = img.height;
+                            const max_size = 1000; // 最大边长 1000px
+                            if (width > height && width > max_size) { height *= max_size / width; width = max_size; }
+                            else if (height > max_size) { width *= max_size / height; height = max_size; }
+                            canvas.width = width; canvas.height = height;
+                            const ctx = canvas.getContext('2d');
+                            ctx.drawImage(img, 0, 0, width, height);
+                            resolve(canvas.toDataURL('image/jpeg', 0.7)); // 压缩率 0.7
+                        };
+                    });
+                };
+
+                const handleImage = (e) => {
+                    const r = new FileReader();
+                    r.onload = async (v) => previewImg.value = await compressImage(v.target.result);
+                    if (e.target.files[0]) r.readAsDataURL(e.target.files[0]);
+                };
+
                 return {
                     handleSync, currentTab, subTab, showModal, diaries, newContent, previewImg, customDate, newMood, newWeather, isSearching, searchQuery, historyDate, calYear, calMonth, selectedDate,
+                    handleImage,
                     filteredDiaries: computed(() => {
                         let list = [...diaries.value];
                         if (subTab.value === 1) list = list.filter(d => d.date.endsWith(historyDate.value.slice(5)));
@@ -228,7 +258,6 @@
                     importData: (e) => { const r = new FileReader(); r.onload = (ev) => { try { diaries.value = JSON.parse(ev.target.result).map(d => ({ ...d, isTimelineExpanded: false })); saveToLocal(); alert("导入成功"); } catch(e) { alert("格式错误"); } }; r.readAsText(e.target.files[0]); },
                     getDayName: (d) => ['日','一','二','三','四','五','六'][new Date(d).getDay()],
                     getMonthName: (d) => ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][new Date(d).getMonth()],
-                    handleImage: (e) => { const r = new FileReader(); r.onload = (v) => previewImg.value = v.target.result; if (e.target.files[0]) r.readAsDataURL(e.target.files[0]); },
                     openNewModal: () => { editingTs.value = null; newContent.value = ''; previewImg.value = ''; newMood.value = '😊'; newWeather.value = '晴'; customDate.value = new Date().toISOString().split('T')[0]; showModal.value = true; },
                     editDiary: (i) => { editingTs.value = i.ts; newContent.value = i.content; previewImg.value = i.img || ''; newMood.value = i.mood || '😊'; newWeather.value = i.weather || '晴'; customDate.value = i.date; showModal.value = true; },
                     deleteDiary: (ts) => { if (confirm("确定删除？")) { diaries.value = diaries.value.filter(x => x.ts !== ts); saveToLocal(); } },
